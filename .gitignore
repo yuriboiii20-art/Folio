@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+.mvn/
+target/
+build/
+.gradle/
+*.class
+
+# Database & Uploads
+data/
+uploads/
+
+# IDE & OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
