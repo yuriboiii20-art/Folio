@@ -7,7 +7,7 @@ interface Subject {
   colorHex: string;
 }
 
-interface Document {
+interface NoteDocument {
   id: number;
   filename: string;
   originalName: string;
@@ -22,7 +22,7 @@ let mockSubjects: Subject[] = [
   { id: 3, name: 'Machine Learning', code: 'CS401', colorHex: '#81c995' }
 ];
 
-let mockDocs: Document[] = [
+let mockDocs: NoteDocument[] = [
   { id: 101, filename: 'Unit-1_IP_Addressing_Notes.pdf', originalName: 'Unit-1_IP_Addressing_Notes.pdf', source: 'WHATSAPP', fileSize: 1024500, createdAt: new Date().toISOString() },
   { id: 102, filename: 'Relational_Algebra_Assignment.pdf', originalName: 'Relational_Algebra_Assignment.pdf', source: 'GOOGLE_CLASSROOM', fileSize: 2048000, createdAt: new Date().toISOString() }
 ];

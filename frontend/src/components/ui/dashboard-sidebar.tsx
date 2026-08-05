@@ -1,449 +1,407 @@
 import React, { useState } from 'react';
 import { 
-  Search, 
-  LayoutDashboard, 
-  FolderKanban, 
-  Users, 
+  LayoutGrid, 
+  Home, 
+  BarChart2, 
+  User, 
   Settings, 
-  LogOut,
-  Hash,
-  ChevronDown,
+  LogOut, 
+  ChevronLeft,
   ChevronRight,
-  Inbox,
-  Calendar,
-  Activity,
-  CreditCard,
-  Globe,
-  Terminal,
-  Blocks,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Command,
-  X
+  FolderClosed,
+  FileText,
+  Bot,
+  Search,
+  Upload,
+  Sparkles,
+  Zap,
+  MoreVertical,
+  Sun,
+  Moon
 } from 'lucide-react';
 
-export type NavItemData = {
+export type WebNavItem = {
   id: string;
   title: string;
   icon: React.ElementType;
   badge?: number | string;
-  shortcut?: string;
-  children?: NavItemData[];
 };
 
-export type NavGroupData = {
-  heading?: string;
-  items: NavItemData[];
-};
+export default function DesktopWebApp() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [chatMessages, setChatMessages] = useState([
+    { sender: 'ai', text: "Hello! I am your local Ollama AI study assistant. Ask me questions about your uploaded documents or subject notes." }
+  ]);
+  const [chatInput, setChatInput] = useState('');
 
-const mockNavGroups: NavGroupData[] = [
-  {
-    items: [
-      { id: 'search', title: 'Search', icon: Search, shortcut: '⌘K' },
-      { id: 'home', title: 'Dashboard', icon: LayoutDashboard },
-      { id: 'inbox', title: 'Notes Inbox', icon: Inbox, badge: 12 },
-      { id: 'analytics', title: 'Analytics', icon: Activity },
-    ]
-  },
-  {
-    heading: 'Academic Workspace',
-    items: [
-      { 
-        id: 'projects', 
-        title: 'Subjects', 
-        icon: FolderKanban,
-        children: [
-          { id: 'p-networks', title: 'Computer Networks', icon: Hash },
-          { id: 'p-dbms', title: 'Database Systems', icon: Hash },
-          { id: 'p-ml', title: 'Machine Learning', icon: Hash },
-        ]
-      },
-      { id: 'calendar', title: 'Schedule', icon: Calendar },
-      { 
-        id: 'team', 
-        title: 'Study Groups', 
-        icon: Users,
-        children: [
-          { id: 't-design', title: 'CS Peer Group', icon: Hash },
-          { id: 't-eng', title: 'Lab Partners', icon: Hash },
-        ]
-      },
-      { id: 'finance', title: 'Integrations', icon: CreditCard },
-    ]
-  },
-  {
-    heading: 'AI & Developer',
-    items: [
-      { id: 'api', title: 'Ollama RAG API', icon: Terminal },
-      { id: 'webhooks', title: 'Integrations', icon: Blocks },
-    ]
-  }
-];
+  const navItems: WebNavItem[] = [
+    { id: 'dashboard', title: 'Dashboard', icon: LayoutGrid },
+    { id: 'home', title: 'Home', icon: Home },
+    { id: 'analytics', title: 'Analytics', icon: BarChart2 },
+    { id: 'ai-studio', title: 'AI Studio', icon: Bot, badge: 'RAG' },
+    { id: 'profile', title: 'Profile', icon: User },
+    { id: 'settings', title: 'Settings', icon: Settings },
+  ];
 
-const mockBottomItems: NavItemData[] = [
-  { id: 'settings', title: 'Settings', icon: Settings, shortcut: '⌘,' },
-  { id: 'logout', title: 'Log out', icon: LogOut },
-];
+  const handleSendChat = () => {
+    if (!chatInput.trim()) return;
+    const q = chatInput;
+    setChatMessages(prev => [...prev, { sender: 'user', text: q }]);
+    setChatInput('');
 
-function WorkspaceSwitcher({ selected, onSelect }: { selected?: string, onSelect?: (ws: string) => void }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [internalSelected, setInternalSelected] = useState('FOLIO Studio');
-  
-  const current = selected || internalSelected;
-  const handleSelect = onSelect || setInternalSelected;
-
-  return (
-    <div className="relative">
-      <div 
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between px-2.5 py-2 mb-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors select-none group border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-            {current.charAt(0)}
-          </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-[13px] font-semibold leading-none mb-1 text-slate-900 dark:text-slate-100 truncate max-w-[120px]">{current}</span>
-            <span className="text-[11px] text-slate-500 leading-none">Academic Workspace</span>
-          </div>
-        </div>
-        <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors shrink-0" strokeWidth={1.5} />
-      </div>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-[52px] left-0 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl z-50 py-1 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100">
-            {['FOLIO Studio', 'Personal Notes', 'Research Vault'].map(ws => (
-              <div 
-                key={ws}
-                onClick={() => { handleSelect(ws); setIsOpen(false); }}
-                className={`px-3 py-2 mx-1 text-[13px] rounded-md cursor-pointer transition-colors ${current === ws ? 'bg-indigo-50 text-indigo-600 font-semibold dark:bg-indigo-950/50 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-              >
-                {ws}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function NavItem({ 
-  item, 
-  activeId, 
-  onSelect,
-  level = 0
-}: { 
-  item: NavItemData; 
-  activeId: string; 
-  onSelect: (id: string) => void;
-  level?: number;
-}) {
-  const isActive = activeId === item.id;
-  const hasChildren = !!item.children;
-  const [isOpen, setIsOpen] = useState(false);
-
-  const handleClick = () => {
-    if (hasChildren) {
-      setIsOpen(!isOpen);
-    } else {
-      onSelect(item.id);
-    }
+    setTimeout(() => {
+      setChatMessages(prev => [
+        ...prev,
+        { sender: 'ai', text: `[Ollama Llama 3.2] Answer generated for: "${q}". Context retrieved from Unit-1_IP_Addressing_Notes.pdf` }
+      ]);
+    }, 500);
   };
 
   return (
-    <div className="flex flex-col w-full">
-      <div 
-        className={`group flex items-center justify-between px-2.5 py-[7px] rounded-md cursor-pointer transition-all duration-150 select-none
-          ${isActive 
-            ? 'bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-950/50 dark:text-indigo-300' 
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-200'
-          }
-        `}
-        style={{ paddingLeft: `${level * 12 + 10}px` }}
-        onClick={handleClick}
-      >
-        <div className="flex items-center gap-2.5">
-          <item.icon 
-            className={`w-[16px] h-[16px] transition-colors
-              ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}
-            `} 
-            strokeWidth={1.5} 
-          />
-          <span className="text-[13px] tracking-wide truncate">
-            {item.title}
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {item.shortcut && (
-             <kbd className="hidden group-hover:inline-flex items-center justify-center h-5 px-1.5 text-[10px] font-medium font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-2xs">
-               {item.shortcut}
-             </kbd>
-          )}
-          {item.badge && (
-            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-semibold rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">
-              {item.badge}
-            </span>
-          )}
-          {hasChildren && (
-            <ChevronRight 
-              className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} 
-              strokeWidth={2}
-            />
-          )}
-        </div>
-      </div>
-
-      {hasChildren && (
-        <div 
-          className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${
-            isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-          }`}
-        >
-          <div className="overflow-hidden min-h-0 relative flex flex-col gap-0.5 mt-0.5">
-            <div 
-              className="absolute top-0 bottom-0 border-l border-slate-200 dark:border-slate-800"
-              style={{ left: `${level * 12 + 17.5}px` }}
-            />
-            {item.children!.map(child => (
-              <NavItem 
-                key={child.id} 
-                item={child} 
-                activeId={activeId} 
-                onSelect={onSelect} 
-                level={level + 1} 
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function SidebarNav({ 
-  className = '',
-  activeId,
-  onSelect,
-  activeWorkspace,
-  onWorkspaceSelect
-}: { 
-  className?: string,
-  activeId?: string,
-  onSelect?: (id: string) => void,
-  activeWorkspace?: string,
-  onWorkspaceSelect?: (ws: string) => void
-}) {
-  const [internalId, setInternalId] = useState('home');
-  const currentId = activeId !== undefined ? activeId : internalId;
-  const handleSelect = onSelect || setInternalId;
-
-  return (
-    <div className={`flex flex-col w-[260px] h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-3 font-sans ${className}`}>
-      <WorkspaceSwitcher selected={activeWorkspace} onSelect={onWorkspaceSelect} />
-
-      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] flex flex-col gap-4 mt-2">
-        {mockNavGroups.map((group, idx) => (
-          <div key={idx} className="flex flex-col gap-0.5">
-            {group.heading && (
-              <span className="px-2.5 mb-1 text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
-                {group.heading}
-              </span>
-            )}
-            {group.items.map(item => (
-              <NavItem 
-                key={item.id} 
-                item={item} 
-                activeId={currentId} 
-                onSelect={handleSelect} 
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-auto pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-0.5">
-        {mockBottomItems.map(item => (
-          <NavItem 
-            key={item.id} 
-            item={item} 
-            activeId={currentId} 
-            onSelect={handleSelect} 
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const allItems = [...mockNavGroups.flatMap(g => g.items), ...mockBottomItems];
-const flattenItems = (items: NavItemData[]): NavItemData[] => {
-  return items.reduce((acc, item) => {
-    acc.push(item);
-    if (item.children) acc.push(...flattenItems(item.children));
-    return acc;
-  }, [] as NavItemData[]);
-};
-const flatMockData = flattenItems(allItems);
-
-export default function SidebarNavPreview() {
-  const [isOpen, setIsOpen] = useState(true);
-  const [activeId, setActiveId] = useState('home');
-  const [activeWorkspace, setActiveWorkspace] = useState('FOLIO Studio');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  const activeItem = flatMockData.find(i => i.id === activeId);
-  const activeTitle = activeItem ? activeItem.title : 'Dashboard';
-
-  const handleSelect = (id: string) => {
-    if (id === 'search') {
-      setIsSearchOpen(true);
-      return;
-    }
-    setActiveId(id);
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center w-full min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8">
+    <div className={`flex h-screen w-screen font-sans overflow-hidden antialiased transition-colors duration-300 ${
+      isDarkMode 
+        ? 'bg-[#0b0e14] text-white selection:bg-purple-600 selection:text-white' 
+        : 'bg-slate-100 text-slate-900 selection:bg-slate-800 selection:text-white'
+    }`}>
       
-      <div className="relative w-full max-w-6xl h-[780px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex overflow-hidden shadow-xl">
-        
-        <div 
-          className={`h-full transition-all duration-300 ease-in-out shrink-0 overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 ${
-            isOpen ? 'w-[260px] opacity-100' : 'w-0 opacity-0 border-none'
-          }`}
-        >
-          <SidebarNav 
-            className="w-[260px] border-none bg-transparent" 
-            activeId={activeId}
-            onSelect={handleSelect}
-            activeWorkspace={activeWorkspace}
-            onWorkspaceSelect={setActiveWorkspace}
-          />
-        </div>
-        
-        <div className="flex-1 bg-slate-50/60 dark:bg-slate-950/40 flex flex-col min-w-0 transition-all duration-300">
-           
-           <div className="h-14 border-b border-slate-200 dark:border-slate-800 flex items-center px-4 justify-between bg-white dark:bg-slate-900 shrink-0">
-             <div className="flex items-center gap-3">
-               <button 
-                 onClick={() => setIsOpen(!isOpen)}
-                 className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 transition-colors"
-               >
-                 {isOpen ? <PanelLeftClose className="w-[18px] h-[18px]" strokeWidth={1.5} /> : <PanelLeftOpen className="w-[18px] h-[18px]" strokeWidth={1.5} />}
-               </button>
-               <div className="flex items-center gap-2 text-sm text-slate-500">
-                 <span className="truncate">{activeWorkspace}</span>
-                 <span>/</span>
-                 <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{activeTitle}</span>
-               </div>
-             </div>
-             
-             <div className="flex items-center gap-3">
-               <div className="w-64 h-8 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md hidden md:flex items-center px-3 text-xs text-slate-400 gap-2">
-                 <Search className="w-3.5 h-3.5" />
-                 <span>Search documents, notes...</span>
-               </div>
-               <div className="w-8 h-8 bg-indigo-100 text-indigo-700 font-bold rounded-full border border-indigo-200 flex items-center justify-center text-xs">
-                 YA
-               </div>
-             </div>
-           </div>
+      {/* Sleek Sidebar (Supports Dark & Light Mode with proper collapsed icon alignments) */}
+      <aside 
+        className={`relative h-full flex flex-col justify-between p-4 transition-all duration-300 z-20 ${
+          isDarkMode 
+            ? 'bg-[#121620] border-r border-slate-800/80' 
+            : 'bg-white border-r border-slate-200 shadow-sm'
+        } ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}
+      >
+        <div className="w-full">
+          {/* Brand Header */}
+          <div className={`flex items-center pb-6 mb-4 border-b ${
+            isDarkMode ? 'border-slate-800/80' : 'border-slate-200'
+          } ${isSidebarCollapsed ? 'justify-center flex-col gap-3' : 'justify-between'}`}>
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-black text-lg text-white shadow-lg shrink-0">
+                L
+              </div>
+              {!isSidebarCollapsed && (
+                <div className="flex flex-col">
+                  <span className={`font-bold text-lg tracking-tight leading-none ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>FOLIO</span>
+                  <span className={`text-[11px] mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Smart Studio</span>
+                </div>
+              )}
+            </div>
 
-           <div className="p-6 md:p-8 overflow-y-auto">
-             <div className="flex items-center justify-between mb-6">
-               <div>
-                 <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Academic Notes & Storage</h2>
-                 <p className="text-xs text-slate-500 mt-1">Organize lecture notes, PDFs, and interact via local Ollama RAG AI.</p>
-               </div>
-             </div>
-             
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-               <div className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-                 <span className="text-xs font-semibold text-slate-400 uppercase">Uploaded Notes</span>
-                 <div className="flex items-baseline gap-2 mt-2">
-                   <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">12</span>
-                   <span className="text-xs text-emerald-600 font-medium">+2 this week</span>
-                 </div>
-               </div>
-               <div className="p-5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-                 <span className="text-xs font-semibold text-slate-400 uppercase">Active Subjects</span>
-                 <div className="flex items-baseline gap-2 mt-2">
-                   <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">4</span>
-                   <span className="text-xs text-slate-500">CS Core</span>
-                 </div>
-               </div>
-               <div className="p-5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/80 dark:border-indigo-900/50 shadow-xs flex flex-col justify-between">
-                 <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase">Local AI Model</span>
-                 <div className="flex items-baseline gap-2 mt-2">
-                   <span className="text-2xl font-extrabold text-indigo-900 dark:text-indigo-200">Llama 3.2</span>
-                   <span className="text-xs text-indigo-600 font-semibold">Active RAG</span>
-                 </div>
-               </div>
-             </div>
+            <button 
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'text-slate-400 hover:text-white hover:bg-slate-800' 
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
+          </div>
 
-             <div className="w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-4">Recent Notes & Uploads</h3>
-                
-                <div className="flex flex-col gap-3">
-                  {[
-                    { title: 'Unit-1_IP_Addressing_Notes.pdf', sub: 'Computer Networks • WhatsApp', size: '1.0 MB' },
-                    { title: 'Relational_Algebra_Assignment.pdf', sub: 'Database Systems • Classroom', size: '2.0 MB' },
-                    { title: 'Linear_Regression_Lab.docx', sub: 'Machine Learning • Direct Upload', size: '850 KB' }
-                  ].map((doc, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3.5 rounded-lg border border-slate-100 dark:border-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">
-                          PDF
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{doc.title}</div>
-                          <div className="text-xs text-slate-400 mt-0.5">{doc.sub}</div>
-                        </div>
-                      </div>
-                      <span className="text-xs font-medium text-slate-400">{doc.size}</span>
-                    </div>
-                  ))}
-               </div>
-             </div>
-           </div>
-        </div>
-
-        {isSearchOpen && (
-          <div className="absolute inset-0 z-50 flex items-start justify-center pt-[15vh] bg-slate-900/30 backdrop-blur-xs px-4">
-            <div className="absolute inset-0" onClick={() => setIsSearchOpen(false)} />
-            <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              <div className="flex items-center px-4 border-b border-slate-200 dark:border-slate-800">
-                <Search className="w-[18px] h-[18px] text-slate-400 mr-3 shrink-0" strokeWidth={1.5} />
-                <input 
-                  autoFocus
-                  className="flex-1 bg-transparent py-4 outline-none text-[14px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
-                  placeholder="Search projects, docs, or actions..."
-                />
-                <kbd 
-                  onClick={() => setIsSearchOpen(false)}
-                  className="hidden sm:inline-flex items-center justify-center h-5 px-1.5 ml-2 text-[10px] font-medium font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded cursor-pointer"
+          {/* Main Nav Items */}
+          <nav className="space-y-1.5 w-full">
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  title={isSidebarCollapsed ? item.title : undefined}
+                  className={`w-full flex items-center rounded-xl text-sm font-medium transition-all ${
+                    isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-3'
+                  } ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold shadow-md shadow-purple-900/20' 
+                      : isDarkMode 
+                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/60' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
                 >
-                  ESC
-                </kbd>
-                <button 
-                  onClick={() => setIsSearchOpen(false)}
-                  className="ml-3 p-1 rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 transition-colors"
-                >
-                  <X className="w-[18px] h-[18px]" strokeWidth={1.5} />
+                  <div className="flex items-center gap-3.5">
+                    <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : isDarkMode ? 'text-slate-400' : 'text-slate-500'}`} />
+                    {!isSidebarCollapsed && <span>{item.title}</span>}
+                  </div>
+
+                  {!isSidebarCollapsed && item.badge && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white/20 text-white">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Bottom Section with Replaced Order (Account Above, Logout Below) */}
+        <div className={`pt-4 border-t w-full space-y-3 ${isDarkMode ? 'border-slate-800/80' : 'border-slate-200'}`}>
+          {/* User Profile Footer (PLACED ABOVE LOGOUT) */}
+          <div className={`flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center' : 'px-1'}`}>
+            <div className="w-10 h-10 rounded-full bg-emerald-500 text-black font-bold flex items-center justify-center text-sm shadow-sm shrink-0">
+              JD
+            </div>
+            {!isSidebarCollapsed && (
+              <div className="flex flex-col overflow-hidden">
+                <span className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>John Doe</span>
+                <span className={`text-xs truncate ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>john@example.com</span>
               </div>
-              <div className="p-2 py-8 flex flex-col items-center justify-center">
-                 <Command className="w-6 h-6 text-slate-300 dark:text-slate-700 mb-2" strokeWidth={1.5} />
-                 <p className="text-[13px] text-slate-400 font-medium">Type a command or search...</p>
-              </div>
+            )}
+          </div>
+
+          {/* Logout Button (PLACED AT THE VERY BOTTOM) */}
+          <button 
+            title={isSidebarCollapsed ? 'Logout' : undefined}
+            className={`w-full flex items-center rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-purple-900/30 hover:opacity-95 transition-opacity ${
+              isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-3'
+            }`}
+          >
+            <div className="flex items-center gap-3.5">
+              <LogOut className="w-5 h-5 shrink-0" />
+              {!isSidebarCollapsed && <span>Logout</span>}
+            </div>
+            {!isSidebarCollapsed && <div className="w-2 h-2 rounded-full bg-white animate-pulse" />}
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Workspace Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
+        
+        {/* Top Navbar */}
+        <header className={`h-16 border-b px-8 flex items-center justify-between backdrop-blur-md shrink-0 transition-colors ${
+          isDarkMode 
+            ? 'bg-[#121620]/60 border-slate-800/80' 
+            : 'bg-white/80 border-slate-200 shadow-2xs'
+        }`}>
+          <div className="flex items-center gap-4 w-96">
+            <div className="relative w-full">
+              <Search className={`absolute left-3.5 top-3 w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`} />
+              <input 
+                type="text" 
+                placeholder="Search notes, subjects, or ask AI..."
+                className={`w-full pl-10 pr-4 py-2 border rounded-xl text-xs outline-none transition-colors ${
+                  isDarkMode 
+                    ? 'bg-[#1a1f2c] border-slate-800 text-white placeholder:text-slate-500 focus:border-purple-500' 
+                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-slate-800'
+                }`}
+              />
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="flex items-center gap-3">
+            {/* Dark Mode / Light Mode Toggle Button */}
+            <button 
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                isDarkMode 
+                  ? 'bg-slate-800/80 text-white border-slate-700 hover:bg-slate-700' 
+                  : 'bg-slate-200/80 text-slate-800 border-slate-300 hover:bg-slate-300'
+              }`}
+            >
+              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+
+            {/* Upload Notes Action Button */}
+            <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-bold shadow-md hover:opacity-90 transition-opacity">
+              <Upload className="w-4 h-4" />
+              <span>Upload Notes</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Dynamic Content Views */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {activeTab === 'dashboard' && (
+            <div className="space-y-8 max-w-6xl mx-auto">
+              
+              {/* Hero Banner */}
+              <div className={`p-8 rounded-2xl border flex items-center justify-between shadow-xl transition-colors ${
+                isDarkMode 
+                  ? 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-slate-800' 
+                  : 'bg-gradient-to-r from-white via-slate-50 to-white border-slate-200 shadow-md'
+              }`}>
+                <div>
+                  <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-2 ${
+                    isDarkMode ? 'text-purple-400' : 'text-purple-700'
+                  }`}>
+                    <Sparkles className="w-4 h-4" />
+                    <span>AI Study Workspace</span>
+                  </div>
+                  <h1 className={`text-3xl font-black tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                    Welcome back, John Doe
+                  </h1>
+                  <p className={`text-sm mt-2 max-w-xl ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Organize your academic resources from WhatsApp, Telegram, Google Classroom & PDFs with local RAG Q&A.
+                  </p>
+                </div>
+                <div className={`p-4 rounded-2xl border backdrop-blur-md flex items-center gap-4 ${
+                  isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'
+                }`}>
+                  <div className="w-12 h-12 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-500">
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>RAG Engine</div>
+                    <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Llama 3.2 Ollama</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Metrics Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className={`p-6 rounded-2xl border shadow-xs flex items-center justify-between transition-colors ${
+                  isDarkMode ? 'bg-[#121620] border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                  <div>
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Total Notes</span>
+                    <div className={`text-3xl font-black mt-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>24</div>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 flex items-center justify-center">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className={`p-6 rounded-2xl border shadow-xs flex items-center justify-between transition-colors ${
+                  isDarkMode ? 'bg-[#121620] border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                  <div>
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Active Subjects</span>
+                    <div className={`text-3xl font-black mt-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>6</div>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-500 flex items-center justify-center">
+                    <FolderClosed className="w-6 h-6" />
+                  </div>
+                </div>
+
+                <div className={`p-6 rounded-2xl border shadow-xs flex items-center justify-between transition-colors ${
+                  isDarkMode ? 'bg-[#121620] border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                  <div>
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>AI Queries</span>
+                    <div className={`text-3xl font-black mt-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>148</div>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
+                    <Bot className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Documents Table */}
+              <div className={`p-6 rounded-2xl border shadow-xs transition-colors ${
+                isDarkMode ? 'bg-[#121620] border-slate-800' : 'bg-white border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Recent Documents & Academic Notes</h3>
+                  <button className="text-xs font-semibold text-purple-600 hover:text-purple-500">View All</button>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    { title: 'Unit-1_IP_Addressing_Notes.pdf', subject: 'Computer Networks', source: 'WhatsApp', size: '1.0 MB', date: 'Today' },
+                    { title: 'Relational_Algebra_Assignment.pdf', subject: 'Database Management', source: 'Google Classroom', size: '2.0 MB', date: 'Yesterday' },
+                    { title: 'Machine_Learning_Lab_Manual.pdf', subject: 'Machine Learning', source: 'Direct Upload', size: '3.4 MB', date: '3 days ago' },
+                  ].map((doc, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                        isDarkMode 
+                          ? 'bg-[#1a1f2c]/50 border-slate-800/60 hover:border-purple-500/40' 
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-500 flex items-center justify-center">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{doc.title}</div>
+                          <div className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{doc.subject} • {doc.source}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-6">
+                        <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{doc.size}</span>
+                        <span className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{doc.date}</span>
+                        <button className={`p-1.5 rounded-lg ${isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}>
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {activeTab === 'ai-studio' && (
+            <div className={`h-[calc(100vh-140px)] max-w-4xl mx-auto flex flex-col border rounded-2xl overflow-hidden shadow-xl ${
+              isDarkMode ? 'bg-[#121620] border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className={`p-4 border-b flex items-center justify-between ${
+                isDarkMode ? 'bg-[#1a1f2c] border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-500 flex items-center justify-center">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Ollama RAG AI Assistant</h3>
+                    <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Ask questions over uploaded lecture notes</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chat Messages Log */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div 
+                      className={`max-w-[75%] p-4 rounded-2xl text-xs leading-relaxed ${
+                        msg.sender === 'user'
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-br-none shadow-md'
+                          : isDarkMode
+                            ? 'bg-[#1a1f2c] border border-slate-800 text-slate-200 rounded-bl-none shadow-sm'
+                            : 'bg-slate-100 border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chat Input */}
+              <div className={`p-4 border-t flex items-center gap-3 ${
+                isDarkMode ? 'bg-[#1a1f2c] border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <input 
+                  type="text" 
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                  placeholder="Ask a question from your documents..."
+                  className={`flex-1 px-4 py-3 border rounded-xl text-xs outline-none focus:border-purple-500 ${
+                    isDarkMode ? 'bg-[#0b0e14] border-slate-800 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400'
+                  }`}
+                />
+                <button 
+                  onClick={handleSendChat}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-xs shadow-md hover:opacity-90 transition-opacity"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
