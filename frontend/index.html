@@ -6,136 +6,157 @@
     <title>FOLIO | Smart File Management & AI Study Assistant</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/src/style.css">
   </head>
-  <body class="bg-dark text-light">
+  <body>
     <div id="app" class="app-layout">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-icon"><i class="bi bi-folder-symlink-fill"></i></div>
-          <span class="brand-name">FOLIO</span>
+      <!-- Stitch Header Bar -->
+      <header class="stitch-topbar">
+        <div class="stitch-brand">
+          <div class="stitch-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#8ab4f8" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M2 17L12 22L22 17" stroke="#8ab4f8" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="#8ab4f8" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="stitch-title">FOLIO Studio</span>
+          <span class="stitch-badge">Google Stitch Aesthetic</span>
         </div>
 
-        <button class="btn btn-primary w-100 mb-4 upload-btn" id="openUploadModal">
-          <i class="bi bi-cloud-arrow-up-fill me-2"></i> Upload File
-        </button>
-
-        <nav class="nav-menu">
-          <a href="#" class="nav-item active" data-tab="dashboard"><i class="bi bi-grid-fill"></i> Dashboard</a>
-          <a href="#" class="nav-item" data-tab="subjects"><i class="bi bi-journal-bookmark-fill"></i> Subjects</a>
-          <a href="#" class="nav-item" data-tab="favorites"><i class="bi bi-star-fill"></i> Favorites</a>
-          <a href="#" class="nav-item" data-tab="ai-assistant"><i class="bi bi-stars"></i> AI Study Assistant</a>
-        </nav>
-
-        <div class="sidebar-section mt-4">
-          <div class="section-title">SUBJECTS <button id="addSubjectBtn" class="btn-icon"><i class="bi bi-plus-lg"></i></button></div>
-          <div id="sidebarSubjectsList" class="subject-list">
-            <!-- Dynamic Subjects -->
+        <div class="stitch-center-actions">
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="btnModeWeb"><i class="bi bi-laptop"></i> Web App</button>
+            <button class="mode-btn" id="btnModeMobile"><i class="bi bi-phone"></i> Mobile Preview</button>
           </div>
         </div>
-      </aside>
 
-      <!-- Main Content Area -->
-      <main class="main-content">
-        <!-- Top Navbar -->
-        <header class="topbar">
-          <div class="search-bar">
-            <i class="bi bi-search"></i>
-            <input type="text" id="searchInput" placeholder="Search notes, PDFs, or AI search..." />
-          </div>
-          <div class="user-profile">
-            <span class="user-name">Student Account</span>
-            <div class="avatar"><i class="bi bi-person-fill"></i></div>
-          </div>
-        </header>
-
-        <!-- Dynamic View Containers -->
-        <div id="contentView" class="view-container">
-          <!-- Main Dashboard View -->
-          <section id="dashboardView" class="view-tab active">
-            <div class="welcome-hero mb-4">
-              <h2>Welcome to FOLIO</h2>
-              <p>Organize academic resources from WhatsApp, Telegram, Classrooms, & PDFs with AI RAG Q&A.</p>
-            </div>
-
-            <!-- Analytics / Stat Cards -->
-            <div class="stats-grid mb-4">
-              <div class="stat-card">
-                <i class="bi bi-file-earmark-pdf-fill stat-icon pdf"></i>
-                <div>
-                  <h4 id="statTotalDocs">0</h4>
-                  <span>Uploaded Files</span>
-                </div>
-              </div>
-              <div class="stat-card">
-                <i class="bi bi-journal-text stat-icon subject"></i>
-                <div>
-                  <h4 id="statTotalSubjects">0</h4>
-                  <span>Active Subjects</span>
-                </div>
-              </div>
-              <div class="stat-card">
-                <i class="bi bi-cpu-fill stat-icon ai"></i>
-                <div>
-                  <h4>Ollama RAG</h4>
-                  <span>AI Powered</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="section-header">
-              <h3>Recent Academic Files</h3>
-            </div>
-            <div class="files-grid" id="recentFilesGrid">
-              <!-- Files rendered here -->
-            </div>
-          </section>
-
-          <!-- AI Assistant View -->
-          <section id="aiView" class="view-tab d-none">
-            <div class="ai-container">
-              <div class="ai-header">
-                <h3><i class="bi bi-stars text-primary me-2"></i> AI Assistant (Document RAG)</h3>
-                <p>Ask questions about your uploaded lecture notes, assignments, and PDFs.</p>
-              </div>
-              <div class="chat-box" id="chatBox">
-                <div class="chat-message system">
-                  <i class="bi bi-robot me-2"></i> Hello! I'm your local Ollama Study Assistant. Ask me anything about your uploaded study notes.
-                </div>
-              </div>
-              <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Ask a question from your notes (e.g. Summarize Unit 1)..." />
-                <button id="sendChatBtn" class="btn btn-primary"><i class="bi bi-send-fill"></i></button>
-              </div>
-            </div>
-          </section>
+        <div class="stitch-right-actions">
+          <button class="btn-stitch-primary" id="openUploadModalTop">
+            <i class="bi bi-cloud-arrow-up-fill me-1"></i> Add Notes
+          </button>
+          <div class="avatar-stitch">S</div>
         </div>
-      </main>
+      </header>
+
+      <div class="workspace-body">
+        <!-- Sidebar Workspace Navigation -->
+        <aside class="sidebar-stitch">
+          <div class="nav-group">
+            <div class="group-title">WORKSPACE</div>
+            <a href="#" class="stitch-nav-item active" data-tab="dashboard">
+              <i class="bi bi-grid-1x2-fill"></i> All Documents
+            </a>
+            <a href="#" class="stitch-nav-item" data-tab="subjects">
+              <i class="bi bi-folder-fill"></i> Subject Folders
+            </a>
+            <a href="#" class="stitch-nav-item" data-tab="ai-assistant">
+              <i class="bi bi-stars"></i> RAG AI Studio
+            </a>
+          </div>
+
+          <div class="nav-group mt-4">
+            <div class="group-title d-flex justify-content-between align-items-center">
+              SUBJECTS <button id="addSubjectBtn" class="btn-icon-tiny"><i class="bi bi-plus"></i></button>
+            </div>
+            <div id="sidebarSubjectsList" class="subject-chips-list">
+              <!-- Subjects populated dynamically -->
+            </div>
+          </div>
+        </aside>
+
+        <!-- Main Workspace Canvas -->
+        <main class="canvas-main">
+          <div class="search-hero-bar">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" id="searchInput" placeholder="Ask AI or search document notes (e.g. 'Computer Networks Unit 1')..." />
+            <button class="btn-ai-search" id="btnAiSearchTrigger">
+              <i class="bi bi-stars"></i> AI Search
+            </button>
+          </div>
+
+          <!-- Main View Tab -->
+          <div id="contentView">
+            <section id="dashboardView" class="view-tab active">
+              <!-- Stats summary bar -->
+              <div class="stitch-metrics-row mb-4">
+                <div class="metric-card">
+                  <div class="metric-val" id="statTotalDocs">0</div>
+                  <div class="metric-label">Uploaded Documents</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-val" id="statTotalSubjects">0</div>
+                  <div class="metric-label">Active Subjects</div>
+                </div>
+                <div class="metric-card highlight">
+                  <div class="metric-val">Llama 3.2</div>
+                  <div class="metric-label">Local RAG Model</div>
+                </div>
+              </div>
+
+              <div class="section-title-row">
+                <h4>Recent Academic Resources</h4>
+              </div>
+
+              <div class="files-grid" id="recentFilesGrid">
+                <!-- Dynamic file cards rendered here -->
+              </div>
+            </section>
+
+            <!-- AI Studio RAG Drawer View -->
+            <section id="aiView" class="view-tab d-none">
+              <div class="stitch-ai-drawer">
+                <div class="drawer-header">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-cpu-fill text-accent"></i>
+                    <div>
+                      <h4 class="m-0">Ollama Interactive RAG Assistant</h4>
+                      <small class="text-muted">Chat with your uploaded lecture PDFs and subject notes</small>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="chat-viewport" id="chatBox">
+                  <div class="chat-bubble system">
+                    <i class="bi bi-robot me-2"></i> Hi! Ask any question from your uploaded notes and I will retrieve the context using Ollama RAG.
+                  </div>
+                </div>
+
+                <div class="chat-prompt-bar">
+                  <input type="text" id="chatInput" placeholder="Ask a question from your course notes..." />
+                  <button id="sendChatBtn" class="btn-stitch-primary">
+                    <i class="bi bi-arrow-right"></i>
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
     </div>
 
     <!-- Upload Modal -->
-    <div class="modal d-none" id="uploadModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h4>Upload Study Notes / Document</h4>
-          <button class="btn-close" id="closeUploadModal"><i class="bi bi-x-lg"></i></button>
+    <div class="modal-backdrop d-none" id="uploadModal">
+      <div class="stitch-dialog">
+        <div class="dialog-header">
+          <h5>Upload Notes & Documents</h5>
+          <button class="btn-close-dialog" id="closeUploadModal"><i class="bi bi-x"></i></button>
         </div>
-        <div class="modal-body">
-          <div class="dropzone" id="dropzone">
-            <i class="bi bi-cloud-arrow-up display-4"></i>
-            <p>Drag & Drop files here or click to browse</p>
+        <div class="dialog-body">
+          <div class="stitch-dropzone" id="dropzone">
+            <i class="bi bi-cloud-arrow-up display-5"></i>
+            <p>Drag & drop notes (PDF, TXT, DOCX) here</p>
             <input type="file" id="fileInput" hidden />
           </div>
           <div class="form-group mt-3">
-            <label>Select Subject</label>
-            <select id="uploadSubjectSelect" class="form-select"></select>
+            <label class="form-label">Subject</label>
+            <select id="uploadSubjectSelect" class="form-control-stitch"></select>
           </div>
           <div class="form-group mt-3">
-            <label>Source</label>
-            <select id="uploadSourceSelect" class="form-select">
+            <label class="form-label">Ingestion Source</label>
+            <select id="uploadSourceSelect" class="form-control-stitch">
               <option value="UPLOAD">Direct Upload</option>
               <option value="WHATSAPP">WhatsApp</option>
               <option value="TELEGRAM">Telegram</option>
@@ -144,9 +165,9 @@
             </select>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" id="cancelUpload">Cancel</button>
-          <button class="btn btn-primary" id="startUploadBtn">Upload File</button>
+        <div class="dialog-footer">
+          <button class="btn-stitch-secondary" id="cancelUpload">Cancel</button>
+          <button class="btn-stitch-primary" id="startUploadBtn">Upload</button>
         </div>
       </div>
     </div>

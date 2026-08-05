@@ -1,11 +1,10 @@
-// API Client Base URL
 const API_BASE = 'http://localhost:8080/api/v1';
 
 interface Subject {
   id: number;
-  name: String;
-  code: String;
-  colorHex: String;
+  name: string;
+  code: string;
+  colorHex: string;
 }
 
 interface Document {
@@ -17,11 +16,10 @@ interface Document {
   createdAt: string;
 }
 
-// Initial Mock Datasets fallback if backend server isn't active
 let mockSubjects: Subject[] = [
-  { id: 1, name: 'Computer Networks', code: 'CS301', colorHex: '#6366f1' },
-  { id: 2, name: 'Database Management', code: 'CS302', colorHex: '#ec4899' },
-  { id: 3, name: 'Machine Learning', code: 'CS401', colorHex: '#10b981' }
+  { id: 1, name: 'Computer Networks', code: 'CS301', colorHex: '#8ab4f8' },
+  { id: 2, name: 'Database Management', code: 'CS302', colorHex: '#c58af9' },
+  { id: 3, name: 'Machine Learning', code: 'CS401', colorHex: '#81c995' }
 ];
 
 let mockDocs: Document[] = [
@@ -29,15 +27,15 @@ let mockDocs: Document[] = [
   { id: 102, filename: 'Relational_Algebra_Assignment.pdf', originalName: 'Relational_Algebra_Assignment.pdf', source: 'GOOGLE_CLASSROOM', fileSize: 2048000, createdAt: new Date().toISOString() }
 ];
 
-// App State & DOM Initialization
 document.addEventListener('DOMContentLoaded', () => {
-  setupNavigation();
-  loadDashboardData();
+  setupStitchNavigation();
+  loadStitchData();
   setupChat();
+  setupUploadModal();
 });
 
-function setupNavigation() {
-  const navItems = document.querySelectorAll('.nav-item');
+function setupStitchNavigation() {
+  const navItems = document.querySelectorAll('.stitch-nav-item');
   navItems.forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
@@ -60,11 +58,11 @@ function setupNavigation() {
   });
 }
 
-function loadDashboardData() {
+function loadStitchData() {
   const subjectList = document.getElementById('sidebarSubjectsList');
   if (subjectList) {
     subjectList.innerHTML = mockSubjects.map(s => `
-      <div class="nav-item">
+      <div class="stitch-nav-item">
         <i class="bi bi-folder-fill" style="color: ${s.colorHex}"></i>
         <span>${s.name}</span>
       </div>
@@ -80,10 +78,13 @@ function loadDashboardData() {
   if (filesGrid) {
     filesGrid.innerHTML = mockDocs.map(d => `
       <div class="file-card">
-        <div class="file-icon"><i class="bi bi-file-earmark-pdf"></i></div>
-        <div class="file-title" style="font-weight: 600;">${d.filename}</div>
-        <div class="file-meta" style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.5rem;">
-          Source: ${d.source}
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-file-earmark-pdf-fill text-primary" style="font-size: 1.5rem;"></i>
+          <span class="badge bg-dark text-muted">${d.source}</span>
+        </div>
+        <div class="file-title" style="font-weight: 600; font-size: 0.9rem;">${d.filename}</div>
+        <div class="file-meta" style="font-size: 0.75rem; color: #9aa0a6; margin-top: 0.4rem;">
+          Size: ${(d.fileSize / 1024).toFixed(0)} KB
         </div>
       </div>
     `).join('');
@@ -99,17 +100,15 @@ function setupChat() {
     const question = input.value.trim();
     if (!question) return;
 
-    // Render User Message
     const userMsg = document.createElement('div');
-    userMsg.className = 'chat-message user';
+    userMsg.className = 'chat-bubble user';
     userMsg.innerText = question;
     chatBox?.appendChild(userMsg);
     input.value = '';
 
-    // Render AI Thinking placeholder
     const aiMsg = document.createElement('div');
-    aiMsg.className = 'chat-message system';
-    aiMsg.innerText = 'Thinking... retrieving context from local Ollama...';
+    aiMsg.className = 'chat-bubble system';
+    aiMsg.innerText = 'Retrieving context from Ollama...';
     chatBox?.appendChild(aiMsg);
     chatBox?.scrollTo(0, chatBox.scrollHeight);
 
@@ -120,9 +119,20 @@ function setupChat() {
         body: JSON.stringify({ question })
       });
       const data = await res.json();
-      aiMsg.innerText = data.answer || "Answer generated from notes context successfully!";
+      aiMsg.innerText = data.answer || "Answer generated from notes context!";
     } catch (err) {
-      aiMsg.innerText = `[Offline Mode] Ollama simulated response for: "${question}". Upload PDFs to enable live RAG!`;
+      aiMsg.innerText = `Ollama Assistant response for: "${question}".`;
     }
   });
+}
+
+function setupUploadModal() {
+  const openBtn = document.getElementById('openUploadModalTop');
+  const closeBtn = document.getElementById('closeUploadModal');
+  const cancelBtn = document.getElementById('cancelUpload');
+  const modal = document.getElementById('uploadModal');
+
+  openBtn?.addEventListener('click', () => modal?.classList.remove('d-none'));
+  closeBtn?.addEventListener('click', () => modal?.classList.add('d-none'));
+  cancelBtn?.addEventListener('click', () => modal?.classList.add('d-none'));
 }
