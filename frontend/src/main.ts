@@ -78,11 +78,11 @@ function loadStitchData() {
   if (filesGrid) {
     filesGrid.innerHTML = mockDocs.map(d => `
       <div class="file-card">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <i class="bi bi-file-earmark-pdf-fill text-primary" style="font-size: 1.5rem;"></i>
-          <span class="badge bg-dark text-muted">${d.source}</span>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <i class="bi bi-file-earmark-pdf-fill" style="font-size: 1.8rem; color: #8ab4f8;"></i>
+          <span style="font-size: 0.7rem; background: rgba(138, 180, 248, 0.15); color: #8ab4f8; padding: 2px 6px; border-radius: 4px;">${d.source}</span>
         </div>
-        <div class="file-title" style="font-weight: 600; font-size: 0.9rem;">${d.filename}</div>
+        <div class="file-title" style="font-weight: 600; font-size: 0.9rem; margin-top: 0.4rem; color: #e8eaed;">${d.filename}</div>
         <div class="file-meta" style="font-size: 0.75rem; color: #9aa0a6; margin-top: 0.4rem;">
           Size: ${(d.fileSize / 1024).toFixed(0)} KB
         </div>
