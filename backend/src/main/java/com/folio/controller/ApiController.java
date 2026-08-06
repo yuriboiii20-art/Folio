@@ -86,6 +86,44 @@ public class ApiController {
         return ResponseEntity.ok(documentService.searchKeyword(user.getId(), query));
     }
 
+    @DeleteMapping("/documents/{id}")
+    public ResponseEntity<?> deleteDocument(@PathVariable Long id) {
+        documentService.deleteDocument(id);
+        return ResponseEntity.ok(Map.of("message", "Document deleted successfully from database."));
+    }
+
+    @DeleteMapping("/subjects/{id}")
+    public ResponseEntity<?> deleteSubject(@PathVariable Long id) {
+        subjectRepository.deleteById(id);
+        return ResponseEntity.ok(Map.of("message", "Subject folder deleted successfully from database."));
+    }
+
+    @GetMapping("/user/profile")
+    public ResponseEntity<User> getUserProfile() {
+        return ResponseEntity.ok(getOrCreateDevUser());
+    }
+
+    @PutMapping("/user/profile")
+    public ResponseEntity<?> updateUserProfile(@RequestBody Map<String, String> body) {
+        User user = getOrCreateDevUser();
+        if (body.containsKey("fullName")) user.setFullName(body.get("fullName"));
+        if (body.containsKey("email")) user.setEmail(body.get("email"));
+        User updated = userRepository.save(user);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/user/password")
+    public ResponseEntity<?> updatePassword(@RequestBody Map<String, String> body) {
+        User user = getOrCreateDevUser();
+        String newPassword = body.get("newPassword");
+        if (newPassword != null && !newPassword.isBlank()) {
+            user.setPassword(newPassword);
+            userRepository.save(user);
+            return ResponseEntity.ok(Map.of("message", "Password updated successfully in database."));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "Invalid password."));
+    }
+
     @PostMapping("/ai/chat")
     public ResponseEntity<Map<String, String>> aiChat(@RequestBody Map<String, String> body) {
         User user = getOrCreateDevUser();

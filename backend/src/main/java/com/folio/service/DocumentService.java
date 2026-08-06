@@ -95,4 +95,15 @@ public class DocumentService {
     public List<Document> searchKeyword(Long userId, String query) {
         return documentRepository.searchKeyword(userId, query);
     }
+
+    public void deleteDocument(Long documentId) {
+        documentRepository.findById(documentId).ifPresent(doc -> {
+            try {
+                if (doc.getStoragePath() != null) {
+                    Files.deleteIfExists(Paths.get(doc.getStoragePath()));
+                }
+            } catch (Exception ignored) {}
+            documentRepository.delete(doc);
+        });
+    }
 }
