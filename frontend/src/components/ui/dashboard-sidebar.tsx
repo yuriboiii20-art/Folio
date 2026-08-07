@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { SearchInput } from './search-input';
 import { 
   LayoutGrid, 
   Home, 
@@ -586,10 +587,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       >
         <div className="w-full">
           {/* Brand Header */}
-          <div className={`h-16 flex items-center bg-[#0f172a] border-b border-slate-800 px-4 ${
-            isSidebarCollapsed ? 'justify-center p-2' : 'justify-between'
+          <div className={`h-16 flex items-center bg-[#0f172a] border-b border-slate-800 ${
+            isSidebarCollapsed ? 'px-2 justify-center gap-1' : 'px-4 justify-between'
           }`}>
-            <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center gap-2.5 shrink-0 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-slate-700 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
                 D
               </div>
@@ -607,7 +608,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
             <button 
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
               title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             >
               {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -713,16 +714,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           
           {/* Search Box */}
           <div className="flex items-center gap-4 w-80 md:w-96">
-            <div className="relative w-full">
-              <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notes, subjects, or AI knowledge..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-xs font-medium outline-none bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-slate-800 transition-all"
-              />
-            </div>
+            <SearchInput 
+              value={searchQuery}
+              onChange={(val) => setSearchQuery(val)}
+              placeholder="Search notes, subjects, or AI knowledge..."
+            />
           </div>
 
           {/* Top Header Actions */}
