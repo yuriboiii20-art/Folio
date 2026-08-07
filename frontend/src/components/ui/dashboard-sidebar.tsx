@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SearchInput } from './search-input';
-import { 
-  LayoutGrid, 
-  Home, 
-  BarChart2, 
-  User, 
-  Settings, 
-  LogOut, 
+import {
+  LayoutGrid,
+  Home,
+  BarChart2,
+  User,
+  Settings,
+  LogOut,
   ChevronLeft,
   ChevronRight,
   FolderClosed,
@@ -47,7 +47,8 @@ import {
   RotateCcw,
   Undo2,
   Calendar,
-  CalendarDays
+  CalendarDays,
+  HardDrive
 } from 'lucide-react';
 
 export type WebNavItem = {
@@ -95,6 +96,17 @@ export interface DeadlineItem {
   dateStr: string;
   completed?: boolean;
   animatingOut?: boolean;
+}
+
+export interface OmniSearchResult {
+  id: string;
+  category: 'page' | 'folder' | 'file' | 'todo' | 'deadline' | 'action';
+  title: string;
+  subtitle?: string;
+  icon: React.ElementType;
+  badge: string;
+  badgeBg: string;
+  action: () => void;
 }
 
 export default function DesktopWebApp() {
@@ -199,6 +211,35 @@ export default function DesktopWebApp() {
     setDeadlines(prev => prev.filter(d => d.id !== id));
   };
 
+  // Cloud Storage Backup State & Handler
+  const [isBackingUp, setIsBackingUp] = useState(false);
+
+  const handleBackupFiles = () => {
+    setIsBackingUp(true);
+    setTimeout(() => {
+      setIsBackingUp(false);
+      const backupData = {
+        studentProfile,
+        folders,
+        files,
+        todoTasks,
+        deadlines,
+        backupTimestamp: new Date().toISOString()
+      };
+      const jsonStr = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Folio_Studio_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      alert('✅ Complete backup archive created and downloaded to your device!');
+    }, 900);
+  };
+
   // TO-DO Tasks State
   const [todoTasks, setTodoTasks] = useState<TodoTask[]>([
     { id: 'todo-1', text: 'Review Computer Networks Unit 1 notes', completed: false },
@@ -249,8 +290,32 @@ export default function DesktopWebApp() {
   const [isReaderFullscreen, setIsReaderFullscreen] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
 
-  // Search Query State
+  // Search Query State & Omni-Search Autocomplete
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Highlighted Item State (for Search Redirection visual feedback)
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+
+  const triggerSearchHighlight = (targetId: string) => {
+    setHighlightedItemId(targetId);
+    setTimeout(() => {
+      setHighlightedItemId(null);
+    }, 1200); // Fast 1.2s "beep beep" double-pulse flash
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+
 
   // Student Profile State
   const [studentProfile, setStudentProfile] = useState({
@@ -291,27 +356,27 @@ export default function DesktopWebApp() {
 
   // Dynamic Folders State
   const [folders, setFolders] = useState<SubjectFolder[]>([
-    { 
-      id: 'f-cn', 
-      name: 'Computer Networks', 
-      code: 'CS301', 
-      description: 'OSI layers, TCP/IP protocol stack, IP addressing & CIDR subnetting notes', 
+    {
+      id: 'f-cn',
+      name: 'Computer Networks',
+      code: 'CS301',
+      description: 'OSI layers, TCP/IP protocol stack, IP addressing & CIDR subnetting notes',
       fileCount: 4,
       colorHex: '#334155'
     },
-    { 
-      id: 'f-dbms', 
-      name: 'Database Management', 
-      code: 'CS302', 
-      description: 'SQL query optimization, ER diagrams, 3NF Normalization & ACID properties', 
+    {
+      id: 'f-dbms',
+      name: 'Database Management',
+      code: 'CS302',
+      description: 'SQL query optimization, ER diagrams, 3NF Normalization & ACID properties',
       fileCount: 3,
       colorHex: '#475569'
     },
-    { 
-      id: 'f-ml', 
-      name: 'Machine Learning', 
-      code: 'CS401', 
-      description: 'Supervised algorithms, Decision Trees, Neural Networks & python lab manuals', 
+    {
+      id: 'f-ml',
+      name: 'Machine Learning',
+      code: 'CS401',
+      description: 'Supervised algorithms, Decision Trees, Neural Networks & python lab manuals',
       fileCount: 5,
       colorHex: '#0f172a'
     }
@@ -319,36 +384,36 @@ export default function DesktopWebApp() {
 
   // Dynamic Files State
   const [files, setFiles] = useState<AcademicFile[]>([
-    { 
-      id: 'doc-1', 
-      title: 'Unit-1_IP_Addressing_Notes.pdf', 
-      folderId: 'f-cn', 
-      source: 'WhatsApp', 
-      size: '1.0 MB', 
+    {
+      id: 'doc-1',
+      title: 'Unit-1_IP_Addressing_Notes.pdf',
+      folderId: 'f-cn',
+      source: 'WhatsApp',
+      size: '1.0 MB',
       sizeBytes: 1048576,
       date: 'Today',
       fileType: 'pdf',
       fileUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf',
       contentSnippet: 'Chapter 1: IP Addressing Principles, Subnetting, IPv4 Header structure, and CIDR Notation.'
     },
-    { 
-      id: 'doc-2', 
-      title: 'Relational_Algebra_Assignment.pdf', 
-      folderId: 'f-dbms', 
-      source: 'Google Classroom', 
-      size: '2.0 MB', 
+    {
+      id: 'doc-2',
+      title: 'Relational_Algebra_Assignment.pdf',
+      folderId: 'f-dbms',
+      source: 'Google Classroom',
+      size: '2.0 MB',
       sizeBytes: 2097152,
       date: 'Yesterday',
       fileType: 'pdf',
       fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
       contentSnippet: 'Assignment 2: Selection (σ), Projection (π), Cartesian Product (×), and Natural Join (⋈) queries.'
     },
-    { 
-      id: 'doc-3', 
-      title: 'Machine_Learning_Lab_Manual.pdf', 
-      folderId: 'f-ml', 
-      source: 'Direct Upload', 
-      size: '3.4 MB', 
+    {
+      id: 'doc-3',
+      title: 'Machine_Learning_Lab_Manual.pdf',
+      folderId: 'f-ml',
+      source: 'Direct Upload',
+      size: '3.4 MB',
       sizeBytes: 3565158,
       date: '3 days ago',
       fileType: 'text',
@@ -383,8 +448,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
   // AI Chat State
   const [chatMessages, setChatMessages] = useState([
-    { 
-      sender: 'ai', 
+    {
+      sender: 'ai',
       text: "👋 Welcome to DashboardKit Study Studio! I am your local Ollama AI study assistant. Ask me questions about your uploaded lecture notes or pick a quick topic below.",
       time: 'Just now'
     }
@@ -414,7 +479,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
     // Filter by search query if any
     if (searchQuery.trim()) {
-      list = list.filter(f => 
+      list = list.filter(f =>
         f.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         f.source.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -440,6 +505,172 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     return title.replace(/\.[^/.]+$/, "");
   };
 
+  // Omni-Search Engine (Full Case-Insensitive Matching across pages, folders, files, to-dos, deadlines & settings)
+  const getOmniSearchResults = (): OmniSearchResult[] => {
+    try {
+      const q = searchQuery.trim().toLowerCase();
+      const results: OmniSearchResult[] = [];
+
+      // 1. Pages & Navigation Menu
+      const pageItems = [
+        { id: 'p-dashboard', title: 'Dashboard Overview', subtitle: 'Main academic studio & summary', icon: LayoutGrid, tabId: 'dashboard' },
+        { id: 'p-home', title: 'Subject Folders', subtitle: 'Browse all subject note directories', icon: Home, tabId: 'home' },
+        { id: 'p-ai', title: 'AI Studio', subtitle: 'Interactive Llama 3.2 study assistant', icon: Bot, tabId: 'ai-studio' },
+        { id: 'p-profile', title: 'Scholar Profile', subtitle: 'View & edit student details', icon: User, tabId: 'profile' },
+        { id: 'p-settings', title: 'Workspace Settings & Backup', subtitle: 'Storage utilization & defaults', icon: Settings, tabId: 'settings' },
+        { id: 'p-trash', title: 'Trash Bin', subtitle: 'Recover deleted files & documents', icon: Trash2, tabId: 'trash' },
+      ];
+
+      pageItems.forEach(p => {
+        if (!q || (p.title && p.title.toLowerCase().includes(q)) || (p.subtitle && p.subtitle.toLowerCase().includes(q))) {
+          results.push({
+            id: p.id,
+            category: 'page',
+            title: p.title,
+            subtitle: p.subtitle,
+            icon: p.icon,
+            badge: 'PAGE',
+            badgeBg: 'bg-slate-100 text-slate-700',
+            action: () => {
+              setActiveTab(p.tabId);
+              setOpenedFolderId(null);
+              triggerSearchHighlight(p.id);
+            }
+          });
+        }
+      });
+
+      // 2. Subject Folders (Case-Insensitive name, code, desc)
+      if (Array.isArray(folders)) {
+        folders.forEach(f => {
+          const name = f?.name || '';
+          const code = f?.code || '';
+          const desc = f?.description || '';
+          if (!q || name.toLowerCase().includes(q) || code.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) {
+            results.push({
+              id: `folder-${f.id}`,
+              category: 'folder',
+              title: `${name} (${code})`,
+              subtitle: desc,
+              icon: FolderClosed,
+              badge: 'FOLDER',
+              badgeBg: 'bg-amber-100 text-amber-800',
+              action: () => {
+                setActiveTab('home');
+                setOpenedFolderId(f.id);
+                triggerSearchHighlight(f.id);
+              }
+            });
+          }
+        });
+      }
+
+      // 3. Academic Files & Documents (Case-Insensitive title, source, snippet)
+      if (Array.isArray(files)) {
+        files.forEach(file => {
+          const title = file?.title || '';
+          const source = file?.source || '';
+          const snippet = file?.contentSnippet || '';
+          if (!q || title.toLowerCase().includes(q) || source.toLowerCase().includes(q) || snippet.toLowerCase().includes(q)) {
+            const folder = folders.find(f => f.id === file.folderId);
+            results.push({
+              id: `file-${file.id}`,
+              category: 'file',
+              title: title,
+              subtitle: `${folder ? folder.name : 'Document'} • ${source} • ${file?.size || ''}`,
+              icon: FileText,
+              badge: file?.fileType === 'pdf' ? 'PDF' : 'TEXT',
+              badgeBg: file?.fileType === 'pdf' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800',
+              action: () => {
+                setReadingFile(file);
+                triggerSearchHighlight(file.id);
+              }
+            });
+          }
+        });
+      }
+
+      // 4. Academic To-Do Tasks (Case-Insensitive task text)
+      if (Array.isArray(todoTasks)) {
+        todoTasks.forEach(task => {
+          const text = task?.text || '';
+          if (!q || text.toLowerCase().includes(q)) {
+            results.push({
+              id: `todo-${task.id}`,
+              category: 'todo',
+              title: text,
+              subtitle: 'Academic To-Do Task',
+              icon: Check,
+              badge: 'TO-DO',
+              badgeBg: 'bg-emerald-100 text-emerald-800',
+              action: () => {
+                setActiveTab('dashboard');
+                triggerSearchHighlight(task.id);
+              }
+            });
+          }
+        });
+      }
+
+      // 5. Upcoming Deadlines (Case-Insensitive title, subject)
+      if (Array.isArray(deadlines)) {
+        deadlines.forEach(dl => {
+          const title = dl?.title || '';
+          const subject = dl?.subject || '';
+          if (!q || title.toLowerCase().includes(q) || subject.toLowerCase().includes(q)) {
+            results.push({
+              id: `dl-${dl.id}`,
+              category: 'deadline',
+              title: title,
+              subtitle: `${subject} ${dl?.dateStr ? '• Due ' + formatDeadlineDate(dl.dateStr) : ''}`,
+              icon: Calendar,
+              badge: 'DEADLINE',
+              badgeBg: 'bg-indigo-100 text-indigo-800',
+              action: () => {
+                setActiveTab('dashboard');
+                triggerSearchHighlight(dl.id);
+              }
+            });
+          }
+        });
+      }
+
+      // 6. Actions & Settings Controls (Case-Insensitive title, subtitle)
+      const actionItems = [
+        { id: 'act-upload', title: 'Upload Academic Notes', subtitle: 'Add new PDF or text file to folder', icon: Upload, fn: () => setIsUploadModalOpen(true) },
+        { id: 'act-new-folder', title: 'Create New Subject Folder', subtitle: 'Add a new subject directory', icon: FolderPlus, fn: () => setIsCreateFolderModalOpen(true) },
+        { id: 'act-backup', title: 'Backup All Files & Data', subtitle: 'Download complete workspace archive', icon: HardDrive, fn: () => handleBackupFiles() },
+        { id: 'act-edit-profile', title: 'Edit Scholar Profile', subtitle: 'Update name, USN, email, or department', icon: UserCog, fn: () => { setActiveTab('profile'); setIsEditProfileModalOpen(true); } },
+        { id: 'act-password', title: 'Change Password', subtitle: 'Update workspace account password', icon: KeyRound, fn: () => { setActiveTab('profile'); setIsChangePasswordModalOpen(true); } },
+      ];
+
+      actionItems.forEach(act => {
+        if (!q || (act.title && act.title.toLowerCase().includes(q)) || (act.subtitle && act.subtitle.toLowerCase().includes(q))) {
+          results.push({
+            id: act.id,
+            category: 'action',
+            title: act.title,
+            subtitle: act.subtitle,
+            icon: act.icon,
+            badge: 'ACTION',
+            badgeBg: 'bg-purple-100 text-purple-800',
+            action: () => {
+              act.fn();
+              triggerSearchHighlight(act.id);
+            }
+          });
+        }
+      });
+
+      return results;
+    } catch (err) {
+      console.error("OmniSearch error:", err);
+      return [];
+    }
+  };
+
+  const omniSearchResults = getOmniSearchResults();
+
   // Create New Subject Folder (Database Synced)
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
@@ -454,7 +685,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       fileCount: 0,
       colorHex: randomColor
     };
-    
+
     setFolders(prev => [...prev, newFolder]);
 
     // Async Database Sync
@@ -513,7 +744,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         try {
           const rawText = await selectedUploadFile.text();
           if (rawText) snippetText = rawText.substring(0, 2000);
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const newFile: AcademicFile = {
@@ -726,7 +957,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
     setTimeout(() => {
       let responseText = `[Ollama Llama 3.2] Answer generated for: "${q}". Context retrieved from uploaded lecture notes.`;
-      
+
       if (q.toLowerCase().includes('ip addressing') || q.toLowerCase().includes('networks')) {
         responseText = "🌐 **IP Addressing Summary (from Unit-1_IP_Addressing_Notes.pdf)**:\n- **IPv4**: 32-bit address split into 4 octets.\n- **CIDR**: Classless Inter-Domain Routing notation (e.g. 192.168.1.0/24).\n- **Subnetting**: Divides larger networks into smaller efficient sub-networks.";
       } else if (q.toLowerCase().includes('normalization') || q.toLowerCase().includes('3nf') || q.toLowerCase().includes('dbms')) {
@@ -754,18 +985,16 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
   return (
     <div className="flex h-screen w-screen bg-[#f4f7fa] text-slate-800 overflow-hidden antialiased">
-      
+
       {/* Sidebar Navigation - Fixed Overflow & Layout (Fulfills Request #1) */}
-      <aside 
-        className={`relative h-full flex flex-col justify-between transition-all duration-300 z-20 shadow-lg bg-[#1e293b] border-r border-slate-800 ${
-          isSidebarCollapsed ? 'w-20 items-center' : 'w-64'
-        }`}
+      <aside
+        className={`relative h-full flex flex-col justify-between transition-all duration-300 z-20 shadow-lg bg-[#1e293b] border-r border-slate-800 ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'
+          }`}
       >
         <div className="w-full">
           {/* Brand Header */}
-          <div className={`h-16 flex items-center bg-[#0f172a] border-b border-slate-800 ${
-            isSidebarCollapsed ? 'px-2 justify-center gap-1' : 'px-4 justify-between'
-          }`}>
+          <div className={`h-16 flex items-center bg-[#0f172a] border-b border-slate-800 ${isSidebarCollapsed ? 'px-2 justify-center gap-1' : 'px-4 justify-between'
+            }`}>
             <div className="flex items-center gap-2.5 shrink-0 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-slate-700 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
                 F
@@ -782,7 +1011,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               )}
             </div>
 
-            <button 
+            <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               onMouseEnter={() => setHoveredStatusLink('sidebar-toggle')}
               onMouseLeave={() => setHoveredStatusLink(null)}
@@ -815,27 +1044,23 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     onMouseEnter={() => setHoveredStatusLink('#' + item.id)}
                     onMouseLeave={() => setHoveredStatusLink(null)}
                     title={isSidebarCollapsed ? item.title : undefined}
-                    className={`w-full flex items-center rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer group ${
-                      isSidebarCollapsed ? 'justify-center p-3 hover:bg-slate-800 hover:scale-105 active:scale-95' : 'justify-between px-3.5 py-3'
-                    } ${
-                      isActive 
-                        ? 'bg-slate-800 text-white font-black shadow-sm ring-1 ring-slate-700' 
+                    className={`w-full flex items-center rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer group ${isSidebarCollapsed ? 'justify-center p-3 hover:bg-slate-800 hover:scale-105 active:scale-95' : 'justify-between px-3.5 py-3'
+                      } ${isActive
+                        ? 'bg-slate-800 text-white font-black shadow-sm ring-1 ring-slate-700'
                         : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
-                      <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
-                        isActive ? 'text-white scale-110' : 'text-slate-400 group-hover:scale-125 group-hover:text-white'
-                      }`} />
+                      <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 ${isActive ? 'text-white scale-110' : 'text-slate-400 group-hover:scale-125 group-hover:text-white'
+                        }`} />
                       {!isSidebarCollapsed && <span className="tracking-wide">{item.title}</span>}
                     </div>
 
                     {!isSidebarCollapsed && item.badge !== undefined && (
-                      <span className={`px-2 py-0.5 text-[10px] font-black rounded-md ${
-                        isActive 
-                          ? 'bg-slate-700 text-white' 
+                      <span className={`px-2 py-0.5 text-[10px] font-black rounded-md ${isActive
+                          ? 'bg-slate-700 text-white'
                           : item.badgeColor || 'bg-slate-800 text-slate-300'
-                      }`}>
+                        }`}>
                         {item.badge}
                       </span>
                     )}
@@ -848,10 +1073,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
         {/* Profile Footer */}
         <div className="p-3 border-t border-slate-800 bg-[#0f172a] w-full space-y-2">
-          <div 
-            className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-all group ${
-              activeTab === 'profile' ? 'bg-slate-800 border border-slate-700' : 'hover:bg-slate-800/50'
-            } ${isSidebarCollapsed ? 'justify-center hover:scale-105' : ''}`}
+          <div
+            className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-all group ${activeTab === 'profile' ? 'bg-slate-800 border border-slate-700' : 'hover:bg-slate-800/50'
+              } ${isSidebarCollapsed ? 'justify-center hover:scale-105' : ''}`}
             onClick={() => {
               setActiveTab('profile');
               setOpenedFolderId(null);
@@ -876,14 +1100,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             )}
           </div>
 
-          <button 
+          <button
             onClick={() => alert("Logged out successfully!")}
             onMouseEnter={() => setHoveredStatusLink('#logout')}
             onMouseLeave={() => setHoveredStatusLink(null)}
             title={isSidebarCollapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer group ${
-              isSidebarCollapsed ? 'justify-center p-2.5 hover:scale-105' : 'justify-between px-3 py-2'
-            }`}
+            className={`w-full flex items-center rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer group ${isSidebarCollapsed ? 'justify-center p-2.5 hover:scale-105' : 'justify-between px-3 py-2'
+              }`}
           >
             <div className="flex items-center gap-2.5">
               <LogOut className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
@@ -896,43 +1119,81 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
       {/* Main Content Workspace */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#f4f7fa]">
-        
+
         {/* Header Navbar */}
         <header className="h-16 border-b border-slate-200 px-6 flex items-center justify-between shrink-0 bg-white shadow-2xs">
-          
-          {/* Search Box */}
-          <div className="flex items-center gap-4 w-80 md:w-96">
-            <SearchInput 
+
+          {/* Omni-Search Box with Floating Autocomplete Panel */}
+          <div ref={searchContainerRef} className="relative w-80 md:w-96">
+            <SearchInput
               value={searchQuery}
-              onChange={(val) => setSearchQuery(val)}
-              placeholder="Search notes, subjects, or AI knowledge..."
+              onChange={(val) => {
+                setSearchQuery(val);
+                setIsSearchFocused(true);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              onClick={() => setIsSearchFocused(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setIsSearchFocused(false);
+                }
+              }}
+              placeholder="Search files, folders, pages, settings, tasks..."
             />
+
+            {/* Floating Suggestions Dropdown */}
+            {isSearchFocused && (
+              <div className="absolute top-full start-0 mt-2 w-full max-h-[380px] overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 p-2 space-y-1">
+                <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 mb-1 text-[11px] font-bold text-slate-400">
+                  <span>{searchQuery.trim() ? `SEARCH SUGGESTIONS (${omniSearchResults.length})` : 'QUICK SEARCH SHORTCUTS'}</span>
+                  <span className="font-mono text-[10px]">Click item to redirect</span>
+                </div>
+
+                {omniSearchResults.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 space-y-1">
+                    <Search className="w-6 h-6 mx-auto text-slate-300 mb-1" />
+                    <p className="font-semibold text-slate-600">No matching items found</p>
+                    <p className="text-[11px]">Try searching "Networks", "Settings", "Backup", or "Profile"</p>
+                  </div>
+                ) : (
+                  omniSearchResults.map((result) => (
+                    <div
+                      key={result.id}
+                      onClick={() => {
+                        result.action();
+                        setSearchQuery('');
+                        setIsSearchFocused(false);
+                      }}
+                      className="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-100 cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 text-slate-700 group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                          <result.icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-slate-900 group-hover:text-slate-950 truncate">
+                            {result.title}
+                          </div>
+                          {result.subtitle && (
+                            <div className="text-[11px] font-medium text-slate-500 truncate">
+                              {result.subtitle}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <span className={`text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-md shrink-0 ${result.badgeBg}`}>
+                        {result.badge}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Top Header Actions */}
           <div className="flex items-center gap-3">
-            
-            {/* View Mode Quick Toggle */}
-            <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 p-1">
-              <button
-                onClick={() => setAppSettings(s => ({ ...s, defaultView: 'Grid' }))}
-                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
-                  appSettings.defaultView === 'Grid' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-400 hover:text-slate-700'
-                }`}
-                title="Grid View"
-              >
-                <Grid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setAppSettings(s => ({ ...s, defaultView: 'List' }))}
-                className={`p-1.5 rounded-md text-xs transition-all cursor-pointer ${
-                  appSettings.defaultView === 'List' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-400 hover:text-slate-700'
-                }`}
-                title="List View"
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
 
             {/* Streak Badge */}
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 text-xs font-bold">
@@ -941,7 +1202,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             </div>
 
             {/* Upload Button */}
-            <button 
+            <button
               onClick={() => setIsUploadModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black shadow-sm hover:bg-slate-800 transition-all cursor-pointer active:scale-95"
             >
@@ -953,13 +1214,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
         {/* Content View Switcher */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
-          
+
           {/* DASHBOARD TAB */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-300">
-              
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                
+
                 {/* Left Column: Welcome Card */}
                 <div className="lg:col-span-2 h-[210px] p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0">
                   <div>
@@ -977,7 +1238,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </div>
 
                   <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                    <button 
+                    <button
                       onClick={() => setActiveTab('ai-studio')}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-sm hover:bg-slate-800 cursor-pointer transition-all active:scale-95"
                     >
@@ -985,7 +1246,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       <span>Ask AI Assistant</span>
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setIsUploadModalOpen(true)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer transition-all hover:bg-slate-200 active:scale-95"
                     >
@@ -997,7 +1258,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                 {/* Right Column Stack: 1. Academic To-Do Tasks + 2. Upcoming Deadlines */}
                 <div className="lg:col-span-1 space-y-6">
-                  
+
                   {/* 1. Academic To-Do Tasks */}
                   <div className="h-[210px] p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2 shrink-0">
@@ -1014,15 +1275,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                     {/* Add To-Do Input */}
                     <div className="flex items-center gap-2 mb-2 shrink-0">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={newTodoText}
                         onChange={(e) => setNewTodoText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleAddTodo(); }}
                         placeholder="Add a new task..."
                         className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none bg-slate-50 focus:border-slate-800 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
                       />
-                      <button 
+                      <button
                         onClick={handleAddTodo}
                         className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs cursor-pointer transition-all active:scale-95 shrink-0"
                         title="Add task"
@@ -1034,27 +1295,28 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     {/* Numbered & Scrollable Task List */}
                     <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0">
                       {todoTasks.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-4">No tasks remaining 🎉</p>
+                        <p className="text-xs text-slate-400 italic text-center py-4">No tasks remaining </p>
                       ) : (
                         todoTasks.map((task, index) => (
-                          <div 
+                          <div
                             key={task.id}
                             className={`flex items-center justify-between p-2 rounded-lg border transition-all duration-300 ${
-                              task.animatingOut 
-                                ? 'border-emerald-200 bg-emerald-50/60 opacity-70 scale-98' 
-                                : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
-                            }`}
+                              highlightedItemId === task.id || highlightedItemId === `todo-${task.id}`
+                                ? 'border-slate-800 ring-2 ring-slate-400 bg-slate-100/90 shadow-xs font-bold animate-pulse'
+                                : task.animatingOut
+                                  ? 'border-emerald-200 bg-emerald-50/60 opacity-70 scale-98'
+                                  : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
+                              }`}
                           >
                             <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
                               <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
                                 {index + 1}.
                               </span>
-                              <span 
-                                className={`text-xs font-medium truncate transition-all duration-300 ${
-                                  task.completed 
-                                    ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic' 
-                                    : 'text-slate-800'
-                                }`}
+                              <span
+                                className={`text-xs font-medium truncate transition-all duration-300 ${task.completed
+                                    ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic'
+                                    : 'text-slate-900'
+                                  }`}
                               >
                                 {task.text}
                               </span>
@@ -1062,21 +1324,20 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                             <div className="flex items-center gap-1 shrink-0">
                               {/* Right Tick Mark Button */}
-                              <button 
+                              <button
                                 onClick={() => handleCompleteTodo(task.id)}
                                 disabled={task.completed}
-                                className={`p-1 rounded-md transition-all cursor-pointer ${
-                                  task.completed 
-                                    ? 'bg-emerald-600 text-white' 
+                                className={`p-1 rounded-md transition-all cursor-pointer ${task.completed
+                                    ? 'bg-emerald-600 text-white'
                                     : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
-                                }`}
+                                  }`}
                                 title="Complete task"
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </button>
 
                               {/* Delete Bin Button */}
-                              <button 
+                              <button
                                 onClick={() => handleDeleteTodo(task.id)}
                                 className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
                                 title="Delete task"
@@ -1092,19 +1353,28 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                   {/* 2. Upcoming Deadlines Box (Fixed Height, Scrollable, Tick & Trash Icons) */}
                   <div className="h-[250px] p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
-                    
+
                     {/* Header */}
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2 shrink-0">
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-                        Upcoming Deadlines
-                      </h3>
-                      <button 
-                        onClick={() => setIsAddDeadlineModalOpen(true)}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-all hover:underline"
-                      >
-                        <span>ADD</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-slate-800" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                          Upcoming Deadlines
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {deadlines.length} left
+                        </span>
+                        <button
+                          onClick={() => setIsAddDeadlineModalOpen(true)}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 cursor-pointer transition-all hover:underline"
+                        >
+                          <span>ADD</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Scrollable Deadlines List (Sorted by nearest date first) */}
@@ -1115,67 +1385,67 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                         [...deadlines]
                           .sort((a, b) => new Date(a.dateStr + 'T00:00:00').getTime() - new Date(b.dateStr + 'T00:00:00').getTime())
                           .map((item) => (
-                          <div 
-                            key={item.id}
-                            className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition-all duration-300 ${
-                              item.animatingOut 
-                                ? 'border-emerald-200 bg-emerald-50/60 opacity-70 scale-98' 
-                                : 'border-slate-100 bg-slate-50/70 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              {/* Blue Circle Icon Box */}
-                              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 border border-blue-100/60 flex items-center justify-center shrink-0">
-                                <Calendar className="w-4 h-4" />
-                              </div>
-                              
-                              <div className="min-w-0 flex-1">
-                                <h4 
-                                  className={`text-xs font-bold truncate transition-all duration-300 ${
-                                    item.completed 
-                                      ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic' 
-                                      : 'text-slate-900'
-                                  }`} 
-                                  title={item.title}
-                                >
-                                  {item.title}
-                                </h4>
-                                <p className={`text-[10px] font-semibold truncate ${item.subjectColor || 'text-blue-500'}`}>
-                                  {item.subject}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs font-bold text-slate-900 font-sans">
-                                {formatDeadlineDate(item.dateStr)}
-                              </span>
-
-                              {/* Right Tick Mark Button */}
-                              <button 
-                                onClick={() => handleCompleteDeadline(item.id)}
-                                disabled={item.completed}
-                                className={`p-1 rounded-md transition-all cursor-pointer ${
-                                  item.completed 
-                                    ? 'bg-emerald-600 text-white' 
-                                    : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                            <div
+                              key={item.id}
+                              className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition-all duration-300 ${
+                                highlightedItemId === item.id || highlightedItemId === `dl-${item.id}`
+                                  ? 'border-slate-800 ring-2 ring-slate-400 bg-slate-100/90 shadow-xs font-bold animate-pulse'
+                                  : item.animatingOut
+                                    ? 'border-emerald-200 bg-emerald-50/60 opacity-70 scale-98'
+                                    : 'border-slate-100 bg-slate-50/70 hover:border-slate-300'
                                 }`}
-                                title="Complete deadline"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {/* Blue Circle Icon Box */}
+                                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 border border-blue-100/60 flex items-center justify-center shrink-0">
+                                  <Calendar className="w-4 h-4" />
+                                </div>
 
-                              {/* Delete Bin Button */}
-                              <button 
-                                onClick={() => handleDeleteDeadline(item.id)}
-                                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
-                                title="Delete deadline"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                                <div className="min-w-0 flex-1">
+                                  <h4
+                                    className={`text-xs font-bold truncate transition-all duration-300 ${item.completed
+                                        ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic'
+                                        : 'text-slate-900'
+                                      }`}
+                                    title={item.title}
+                                  >
+                                    {item.title}
+                                  </h4>
+                                  <p className={`text-[10px] font-semibold truncate ${item.subjectColor || 'text-blue-500'}`}>
+                                    {item.subject}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs font-bold text-slate-900 font-sans">
+                                  {formatDeadlineDate(item.dateStr)}
+                                </span>
+
+                                {/* Right Tick Mark Button */}
+                                <button
+                                  onClick={() => handleCompleteDeadline(item.id)}
+                                  disabled={item.completed}
+                                  className={`p-1 rounded-md transition-all cursor-pointer ${item.completed
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                                    }`}
+                                  title="Complete deadline"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Delete Bin Button */}
+                                <button
+                                  onClick={() => handleDeleteDeadline(item.id)}
+                                  className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                  title="Delete deadline"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))
                       )}
                     </div>
 
@@ -1196,7 +1466,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   {/* Header Bar */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-200 gap-4">
                     <div className="flex items-center gap-4">
-                      <button 
+                      <button
                         onClick={() => setOpenedFolderId(null)}
                         className="p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 font-bold flex items-center gap-2 text-xs cursor-pointer transition-all"
                       >
@@ -1219,7 +1489,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       </div>
                     </div>
 
-                    <button 
+                    <button
                       onClick={() => {
                         setSelectedFolderId(currentOpenedFolder.id);
                         setIsUploadModalOpen(true);
@@ -1241,7 +1511,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       <div className="text-center py-16 text-slate-500 text-xs">
                         <FolderOpen className="w-12 h-12 mx-auto text-slate-400 mb-3 animate-pulse" />
                         <p className="font-semibold">No documents uploaded in this folder yet.</p>
-                        <button 
+                        <button
                           onClick={() => {
                             setSelectedFolderId(currentOpenedFolder.id);
                             setIsUploadModalOpen(true);
@@ -1254,9 +1524,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     ) : (
                       <div className="space-y-3">
                         {currentOpenedFolderFiles.map((doc) => (
-                          <div 
-                            key={doc.id} 
-                            className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg border border-slate-200 bg-slate-50"
+                          <div
+                            key={doc.id}
+                            className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg border transition-all duration-300 ${
+                              highlightedItemId === doc.id || highlightedItemId === `file-${doc.id}`
+                                ? 'border-slate-800 ring-2 ring-slate-400 bg-slate-100/90 shadow-xs font-bold animate-pulse'
+                                : 'border-slate-200 bg-slate-50'
+                            }`}
                           >
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 rounded-lg bg-slate-200 border border-slate-300 text-slate-800 flex items-center justify-center shrink-0">
@@ -1265,13 +1539,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                               <div>
                                 <div className="text-sm font-bold text-slate-900">{formatFileTitle(doc.title)}</div>
                                 <div className="text-xs text-slate-500 mt-0.5">
-                                  Source: <span className="text-slate-800 font-semibold">{doc.source}</span> • Added: {doc.date} • Size: {doc.size}
+                                  Source: <span className="font-semibold">{doc.source}</span> • Added: {doc.date} • Size: {doc.size}
                                 </div>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-2 self-end sm:self-auto">
-                              <button 
+                              <button
                                 onClick={() => handleDownloadToDevice(doc)}
                                 className="p-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                                 title="Download File to Device Explorer"
@@ -1279,15 +1553,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                                 <Download className="w-4 h-4" />
                               </button>
 
-                              <button 
+                              <button
                                 onClick={() => handleDeleteFile(doc)}
                                 className="p-2.5 rounded-lg border border-slate-300 bg-white text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Delete File"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
 
-                              <button 
+                              <button
                                 onClick={() => setReadingFile(doc)}
                                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black shadow-md cursor-pointer hover:bg-slate-800 transition-opacity"
                               >
@@ -1311,7 +1585,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                         Organize your study resources by subject. Click any folder to inspect files.
                       </p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setIsCreateFolderModalOpen(true)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-md hover:bg-slate-800 transition-all cursor-pointer self-start sm:self-auto"
                     >
@@ -1324,10 +1598,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     {folders.map((folder) => {
                       const folderFiles = files.filter(f => f.folderId === folder.id);
                       return (
-                        <div 
-                          key={folder.id} 
+                        <div
+                          key={folder.id}
                           onClick={() => setOpenedFolderId(folder.id)}
-                          className="p-6 rounded-xl border border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 transition-all cursor-pointer group hover:-translate-y-1"
+                          className={`p-6 rounded-xl border transition-all cursor-pointer group hover:-translate-y-1 ${
+                            highlightedItemId === folder.id || highlightedItemId === `folder-${folder.id}`
+                              ? 'border-slate-800 ring-2 ring-slate-400 bg-slate-100/90 shadow-md animate-pulse scale-[1.01]'
+                              : 'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50'
+                          }`}
                         >
                           <div className="flex items-center justify-between mb-4">
                             <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center transition-transform group-hover:scale-110">
@@ -1367,7 +1645,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {/* AI STUDIO TAB */}
           {activeTab === 'ai-studio' && (
             <div className="h-[calc(100vh-140px)] max-w-4xl mx-auto flex flex-col border border-slate-200 bg-white rounded-xl overflow-hidden shadow-sm animate-in fade-in duration-300">
-              
+
               <div className="p-4 px-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -1385,7 +1663,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => setChatMessages([{ sender: 'ai', text: "Thread cleared. Ask me any question about your notes!", time: 'Just now' }])}
                     className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-md bg-slate-200 border border-slate-300 transition-colors cursor-pointer font-bold"
                   >
@@ -1397,12 +1675,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
                 {chatMessages.map((msg, idx) => (
                   <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div 
-                      className={`max-w-[80%] p-4 rounded-xl text-xs leading-relaxed space-y-2 ${
-                        msg.sender === 'user'
+                    <div
+                      className={`max-w-[80%] p-4 rounded-xl text-xs leading-relaxed space-y-2 ${msg.sender === 'user'
                           ? 'bg-slate-900 text-white font-medium rounded-br-none shadow-xs'
                           : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-2xs'
-                      }`}
+                        }`}
                     >
                       <div className="whitespace-pre-wrap">{msg.text}</div>
                       <div className={`text-[10px] font-mono text-right ${msg.sender === 'user' ? 'text-slate-300' : 'text-slate-400'}`}>
@@ -1416,7 +1693,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <div className="px-6 py-2 border-t border-slate-200 bg-slate-50 flex items-center gap-2 overflow-x-auto">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 shrink-0">Prompts:</span>
                 {quickPrompts.map((p, idx) => (
-                  <button 
+                  <button
                     key={idx}
                     onClick={() => handleSendChat(p)}
                     className="px-3 py-1 rounded-md text-[11px] font-bold whitespace-nowrap bg-white text-slate-700 hover:bg-slate-900 hover:text-white border border-slate-300 transition-all cursor-pointer"
@@ -1427,15 +1704,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               </div>
 
               <div className="p-4 border-t border-slate-200 bg-white flex items-center gap-3">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
                   placeholder="Ask a question from your notes (e.g., Explain CIDR notation)..."
                   className="flex-1 px-4 py-3 border border-slate-300 rounded-lg text-xs outline-none bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-slate-800"
                 />
-                <button 
+                <button
                   onClick={() => handleSendChat()}
                   className="flex items-center gap-2 px-5 py-3 rounded-lg bg-slate-900 text-white font-black text-xs shadow-md hover:bg-slate-800 transition-opacity cursor-pointer"
                 >
@@ -1489,7 +1766,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {activeTab === 'profile' && (
             <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
               <div className="p-8 rounded-xl border border-slate-200 bg-white shadow-2xs">
-                
+
                 {/* Avatar & Header */}
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 pb-6 mb-6 border-b border-slate-200">
                   <div className="relative group">
@@ -1626,10 +1903,82 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {activeTab === 'settings' && (
             <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
               <div className="p-8 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-6">
-                
+
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">DashboardKit Workspace Settings</h2>
-                  <p className="text-xs text-slate-500 mt-1">Configure default storage, sorting, view modes, and file behaviors</p>
+                  <h2 className="text-xl font-bold text-slate-900">FOLIO Studio Workspace Settings</h2>
+                  <p className="text-xs text-slate-500 mt-1">Configure workspace storage, backup archives, default sorting, view modes, and file behaviors</p>
+                </div>
+
+                {/* Storage & Cloud Backup Box (Placed in Settings Page) */}
+                <div className="p-6 rounded-xl border border-slate-200 bg-slate-50 space-y-5">
+                  
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                        <HardDrive className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                          Workspace Storage Utilization & Backup
+                        </h3>
+                        <p className="text-[11px] font-medium text-slate-500">
+                          Monitor disk space usage and create local backup snapshots
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-mono font-bold text-slate-700 bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-2xs">
+                      2.4 GB / 15.0 GB (16%)
+                    </span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span>Used Storage</span>
+                      <span>12.6 GB Available</span>
+                    </div>
+
+                    <div className="w-full bg-slate-200 rounded-full h-3.5 p-0.5 overflow-hidden border border-slate-300/70">
+                      <div 
+                        className="bg-slate-900 h-full rounded-full transition-all duration-500 shadow-xs" 
+                        style={{ width: '16%' }} 
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 font-medium pt-1 gap-2">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-slate-900" />
+                        <span>PDF Documents: 1.8 GB</span>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-slate-500" />
+                        <span>Text & Scans: 0.6 GB</span>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-slate-300" />
+                        <span>Free Space: 12.6 GB</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Backup Option Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-3 border-t border-slate-200 gap-3">
+                    <div className="text-xs font-semibold text-slate-600">
+                      Export a complete JSON backup snapshot of your lecture notes, subject folders, and deadlines
+                    </div>
+
+                    <button
+                      onClick={handleBackupFiles}
+                      disabled={isBackingUp}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-sm hover:bg-slate-800 transition-all cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 self-start sm:self-auto"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>{isBackingUp ? 'Creating Backup...' : 'Backup All Files'}</span>
+                    </button>
+                  </div>
+
                 </div>
 
                 {/* 1. Default Folder & Upload Location */}
@@ -1642,7 +1991,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
                       <label className="block text-slate-600 mb-1.5 font-semibold">Default Upload Location</label>
-                      <select 
+                      <select
                         value={appSettings.defaultUploadLocation}
                         onChange={(e) => setAppSettings(s => ({ ...s, defaultUploadLocation: e.target.value }))}
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-slate-800 font-medium"
@@ -1655,7 +2004,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                     <div>
                       <label className="block text-slate-600 mb-1.5 font-semibold">Sort Files By</label>
-                      <select 
+                      <select
                         value={appSettings.sortBy}
                         onChange={(e) => setAppSettings(s => ({ ...s, sortBy: e.target.value as any }))}
                         className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-slate-800 font-medium"
@@ -1684,17 +2033,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     <div className="flex items-center border border-slate-300 rounded-lg bg-white p-1">
                       <button
                         onClick={() => setAppSettings(s => ({ ...s, defaultView: 'Grid' }))}
-                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          appSettings.defaultView === 'Grid' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${appSettings.defaultView === 'Grid' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
                       >
                         Grid
                       </button>
                       <button
                         onClick={() => setAppSettings(s => ({ ...s, defaultView: 'List' }))}
-                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          appSettings.defaultView === 'List' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${appSettings.defaultView === 'List' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
                       >
                         List
                       </button>
@@ -1714,8 +2061,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                           <div className="text-xs font-bold text-slate-900">{item.label}</div>
                           <div className="text-[11px] text-slate-500">{item.desc}</div>
                         </div>
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={(appSettings as any)[item.key]}
                           onChange={(e) => setAppSettings(s => ({ ...s, [item.key]: e.target.checked }))}
                           className="w-4 h-4 accent-slate-900 rounded cursor-pointer"
@@ -1741,7 +2088,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {/* TRASH TAB */}
           {activeTab === 'trash' && (
             <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300">
-              
+
               {/* Trash Header Card */}
               <div className="p-6 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1791,7 +2138,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     {trashedFiles.map((doc) => {
                       const subjectFolder = folders.find(f => f.id === doc.folderId);
                       return (
-                        <div 
+                        <div
                           key={doc.id}
                           className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
                         >
@@ -1860,8 +2207,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Full Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium"
@@ -1870,8 +2217,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Email Address</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium"
@@ -1880,8 +2227,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">USN Identifier</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={editUsn}
                   onChange={(e) => setEditUsn(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono font-medium"
@@ -1890,8 +2237,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Academic Role</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium"
@@ -1900,8 +2247,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Department Branch</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={editBranch}
                   onChange={(e) => setEditBranch(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium"
@@ -1944,8 +2291,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Current Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••"
@@ -1955,8 +2302,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">New Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="••••••••"
@@ -1966,8 +2313,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Confirm New Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
@@ -2005,11 +2352,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <button onClick={() => setIsDeleteAccountModalOpen(false)} className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100">
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => {
                   alert("Account deleted.");
                   setIsDeleteAccountModalOpen(false);
-                }} 
+                }}
                 className="px-5 py-2 rounded-lg text-xs font-black bg-rose-600 text-white hover:bg-rose-700 shadow-md"
               >
                 Yes, Delete Account
@@ -2036,8 +2383,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <button onClick={() => setDeletingFileTarget(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100">
                 Cancel
               </button>
-              <button 
-                onClick={() => performDeleteFile(deletingFileTarget.id)} 
+              <button
+                onClick={() => performDeleteFile(deletingFileTarget.id)}
                 className="px-4 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
               >
                 Delete File
@@ -2050,10 +2397,20 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       {/* FULL IN-APP DOCUMENT / PDF READER MODAL */}
       {readingFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 animate-in fade-in duration-200">
-          <div className={`w-full flex flex-col bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden transition-all ${
-            isReaderFullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[90vh] max-w-5xl'
-          }`}>
-            
+          <div className={`w-full flex flex-col bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden transition-all ${isReaderFullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[90vh] max-w-5xl'
+            }`}>
+
+            {/* Highlighted Banner when redirected from search */}
+            {(highlightedItemId === readingFile.id || highlightedItemId === `file-${readingFile.id}`) && (
+              <div className="bg-slate-100 border-b border-slate-300 px-6 py-2 text-xs font-bold text-slate-800 flex items-center justify-between shrink-0 animate-pulse">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-slate-700 animate-spin" />
+                  <span>✨ OPENED FROM SEARCH MATCH</span>
+                </span>
+                <span className="font-mono text-[10px] bg-white border border-slate-300 px-2.5 py-0.5 rounded text-slate-700 font-bold">Search Match</span>
+              </div>
+            )}
+
             {/* Reader Header */}
             <div className="p-4 px-6 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
@@ -2068,7 +2425,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div className="flex items-center gap-2">
                 {!readingFile.fileUrl && (
-                  <button 
+                  <button
                     onClick={() => handleCopySnippet(readingFile.contentSnippet || '')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
                   >
@@ -2077,7 +2434,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </button>
                 )}
 
-                <button 
+                <button
                   onClick={() => handleDownloadToDevice(readingFile)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white text-slate-900 text-xs font-black transition-all cursor-pointer shadow-sm hover:bg-slate-100"
                   title="Download File to Local Explorer"
@@ -2086,15 +2443,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   <span>Download</span>
                 </button>
 
-                <button 
+                <button
                   onClick={() => setIsReaderFullscreen(!isReaderFullscreen)}
                   className="p-2 rounded-md bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 >
                   {isReaderFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
 
-                <button 
-                  onClick={() => setReadingFile(null)} 
+                <button
+                  onClick={() => setReadingFile(null)}
                   className="p-2 rounded-md bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -2105,7 +2462,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             {/* Reader Body */}
             <div className="flex-1 bg-slate-100 overflow-hidden p-3">
               {readingFile.fileUrl ? (
-                <iframe 
+                <iframe
                   src={readingFile.fileUrl}
                   className="w-full h-full rounded-lg border-0 bg-white"
                   title={readingFile.title}
@@ -2144,8 +2501,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             <div className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Subject Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   placeholder="e.g. Operating Systems"
@@ -2155,8 +2512,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Subject Code</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newFolderCode}
                   onChange={(e) => setNewFolderCode(e.target.value)}
                   placeholder="e.g. CS303"
@@ -2166,7 +2523,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Description</label>
-                <textarea 
+                <textarea
                   value={newFolderDesc}
                   onChange={(e) => setNewFolderDesc(e.target.value)}
                   placeholder="Brief summary of notes stored inside..."
@@ -2204,8 +2561,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             <div className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Select File from Device</label>
-                <input 
-                  type="file" 
+                <input
+                  type="file"
                   onChange={(e) => setSelectedUploadFile(e.target.files ? e.target.files[0] : null)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
                 />
@@ -2213,7 +2570,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Add to Subject Folder</label>
-                <select 
+                <select
                   value={selectedFolderId}
                   onChange={(e) => setSelectedFolderId(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-slate-800 font-medium"
@@ -2228,7 +2585,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Ingestion Source Channel</label>
-                <select 
+                <select
                   value={selectedSource}
                   onChange={(e) => setSelectedSource(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-slate-800 font-medium"
@@ -2243,15 +2600,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <button 
-                onClick={() => setIsUploadModalOpen(false)} 
+              <button
+                onClick={() => setIsUploadModalOpen(false)}
                 disabled={isUploading}
                 className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
               >
                 Cancel
               </button>
-              <button 
-                onClick={handleUploadFileSubmit} 
+              <button
+                onClick={handleUploadFileSubmit}
                 disabled={isUploading}
                 className="px-5 py-2 rounded-lg text-xs font-black bg-slate-900 text-white shadow-md hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2"
               >
@@ -2286,8 +2643,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             <div className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Task / Assignment Title</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newDeadlineTitle}
                   onChange={(e) => setNewDeadlineTitle(e.target.value)}
                   placeholder="e.g. Complete Programming Assignment 1"
@@ -2297,8 +2654,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Subject / Course Subtitle</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newDeadlineSubject}
                   onChange={(e) => setNewDeadlineSubject(e.target.value)}
                   placeholder="e.g. Introduction to Computer Science"
@@ -2308,8 +2665,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
               <div>
                 <label className="block text-slate-600 mb-1 font-semibold">Select Deadline Date</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={newDeadlineDate}
                   onChange={(e) => setNewDeadlineDate(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium outline-none focus:border-slate-800 cursor-pointer"
@@ -2318,13 +2675,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <button 
+              <button
                 onClick={() => setIsAddDeadlineModalOpen(false)}
                 className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleAddDeadline}
                 className="px-5 py-2 rounded-lg text-xs font-black bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95 cursor-pointer"
               >
