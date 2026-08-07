@@ -45,7 +45,9 @@ import {
   Sliders,
   FolderTree,
   RotateCcw,
-  Undo2
+  Undo2,
+  Calendar,
+  CalendarDays
 } from 'lucide-react';
 
 export type WebNavItem = {
@@ -85,6 +87,16 @@ export interface TodoTask {
   animatingOut?: boolean;
 }
 
+export interface DeadlineItem {
+  id: string;
+  title: string;
+  subject: string;
+  subjectColor?: string;
+  dateStr: string;
+  completed?: boolean;
+  animatingOut?: boolean;
+}
+
 export default function DesktopWebApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -92,6 +104,100 @@ export default function DesktopWebApp() {
   // Trash Bin & Browser Status Link State
   const [trashedFiles, setTrashedFiles] = useState<AcademicFile[]>([]);
   const [hoveredStatusLink, setHoveredStatusLink] = useState<string | null>(null);
+
+  // Upcoming Deadlines State
+  const [deadlines, setDeadlines] = useState<DeadlineItem[]>([
+    {
+      id: 'dl-1',
+      title: 'Complete Programming Assignment 1',
+      subject: 'Introduction to Computer Science',
+      subjectColor: 'text-blue-500',
+      dateStr: (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })()
+    },
+    {
+      id: 'dl-2',
+      title: 'Quiz 1 Preparation',
+      subject: 'Introduction to Computer Science',
+      subjectColor: 'text-blue-500',
+      dateStr: (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })()
+    },
+    {
+      id: 'dl-3',
+      title: 'Psychology Research Paper Outline',
+      subject: 'Introduction to Psychology',
+      subjectColor: 'text-amber-500',
+      dateStr: (() => { const d = new Date(); d.setDate(d.getDate() + 2); return d.toISOString().split('T')[0]; })()
+    },
+    {
+      id: 'dl-4',
+      title: 'Problem Set 2',
+      subject: 'Calculus I',
+      subjectColor: 'text-emerald-500',
+      dateStr: (() => { const d = new Date(); d.setDate(d.getDate() + 4); return d.toISOString().split('T')[0]; })()
+    }
+  ]);
+
+  const [isAddDeadlineModalOpen, setIsAddDeadlineModalOpen] = useState(false);
+  const [newDeadlineTitle, setNewDeadlineTitle] = useState('');
+  const [newDeadlineSubject, setNewDeadlineSubject] = useState('');
+  const [newDeadlineDate, setNewDeadlineDate] = useState('');
+
+  const formatDeadlineDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const target = new Date(y, m - 1, d);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = months[target.getMonth()];
+    const dayNum = target.getDate();
+
+    return `${monthName}- ${dayNum}`;
+  };
+
+  const handleAddDeadline = () => {
+    if (!newDeadlineTitle.trim() || !newDeadlineDate) return;
+    const colors = ['text-blue-500', 'text-amber-500', 'text-emerald-500', 'text-indigo-500', 'text-rose-500'];
+    const randomColor = colors[deadlines.length % colors.length];
+
+    const newItem: DeadlineItem = {
+      id: `dl-${Date.now()}`,
+      title: newDeadlineTitle.trim(),
+      subject: newDeadlineSubject.trim() || 'General Academic Task',
+      subjectColor: randomColor,
+      dateStr: newDeadlineDate
+    };
+
+    setDeadlines(prev => [...prev, newItem]);
+    setNewDeadlineTitle('');
+    setNewDeadlineSubject('');
+    setNewDeadlineDate('');
+    setIsAddDeadlineModalOpen(false);
+  };
+
+  const handleCompleteDeadline = (id: string) => {
+    setDeadlines(prev => prev.map(d => {
+      if (d.id === id) {
+        return { ...d, completed: true, animatingOut: true };
+      }
+      return d;
+    }));
+
+    setTimeout(() => {
+      setDeadlines(prev => prev.filter(d => d.id !== id));
+    }, 450);
+  };
+
+  const handleDeleteDeadline = (id: string) => {
+    setDeadlines(prev => prev.filter(d => d.id !== id));
+  };
 
   // TO-DO Tasks State
   const [todoTasks, setTodoTasks] = useState<TodoTask[]>([
@@ -852,10 +958,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {activeTab === 'dashboard' && (
             <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-300">
               
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 
-                {/* 1. Welcome Card (Uniform Text & Styling) */}
-                <div className="lg:col-span-2 p-7 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-6">
+                {/* Left Column: Welcome Card */}
+                <div className="lg:col-span-2 h-[210px] p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0">
                   <div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                       Welcome back, {studentProfile.name}
@@ -889,10 +995,12 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </div>
                 </div>
 
-                {/* 2. Top Right TO-DO Section (Fixed Height & Scrollable Numbered List) */}
-                <div className="lg:col-span-1 p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between h-full max-h-[220px]">
-                  <div className="flex flex-col h-full overflow-hidden">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2.5 shrink-0">
+                {/* Right Column Stack: 1. Academic To-Do Tasks + 2. Upcoming Deadlines */}
+                <div className="lg:col-span-1 space-y-6">
+                  
+                  {/* 1. Academic To-Do Tasks */}
+                  <div className="h-[210px] p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2 shrink-0">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-slate-800" />
                         <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
@@ -924,9 +1032,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     </div>
 
                     {/* Numbered & Scrollable Task List */}
-                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[110px]">
+                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0">
                       {todoTasks.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-3">No tasks remaining 🎉</p>
+                        <p className="text-xs text-slate-400 italic text-center py-4">No tasks remaining 🎉</p>
                       ) : (
                         todoTasks.map((task, index) => (
                           <div 
@@ -981,6 +1089,98 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       )}
                     </div>
                   </div>
+
+                  {/* 2. Upcoming Deadlines Box (Fixed Height, Scrollable, Tick & Trash Icons) */}
+                  <div className="h-[250px] p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
+                    
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2 shrink-0">
+                      <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+                        Upcoming Deadlines
+                      </h3>
+                      <button 
+                        onClick={() => setIsAddDeadlineModalOpen(true)}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-all hover:underline"
+                      >
+                        <span>ADD</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Scrollable Deadlines List (Sorted by nearest date first) */}
+                    <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+                      {deadlines.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic text-center py-6">No upcoming deadlines scheduled</p>
+                      ) : (
+                        [...deadlines]
+                          .sort((a, b) => new Date(a.dateStr + 'T00:00:00').getTime() - new Date(b.dateStr + 'T00:00:00').getTime())
+                          .map((item) => (
+                          <div 
+                            key={item.id}
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg border transition-all duration-300 ${
+                              item.animatingOut 
+                                ? 'border-emerald-200 bg-emerald-50/60 opacity-70 scale-98' 
+                                : 'border-slate-100 bg-slate-50/70 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {/* Blue Circle Icon Box */}
+                              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 border border-blue-100/60 flex items-center justify-center shrink-0">
+                                <Calendar className="w-4 h-4" />
+                              </div>
+                              
+                              <div className="min-w-0 flex-1">
+                                <h4 
+                                  className={`text-xs font-bold truncate transition-all duration-300 ${
+                                    item.completed 
+                                      ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic' 
+                                      : 'text-slate-900'
+                                  }`} 
+                                  title={item.title}
+                                >
+                                  {item.title}
+                                </h4>
+                                <p className={`text-[10px] font-semibold truncate ${item.subjectColor || 'text-blue-500'}`}>
+                                  {item.subject}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-bold text-slate-900 font-sans">
+                                {formatDeadlineDate(item.dateStr)}
+                              </span>
+
+                              {/* Right Tick Mark Button */}
+                              <button 
+                                onClick={() => handleCompleteDeadline(item.id)}
+                                disabled={item.completed}
+                                className={`p-1 rounded-md transition-all cursor-pointer ${
+                                  item.completed 
+                                    ? 'bg-emerald-600 text-white' 
+                                    : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                                title="Complete deadline"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Delete Bin Button */}
+                              <button 
+                                onClick={() => handleDeleteDeadline(item.id)}
+                                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                title="Delete deadline"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                  </div>
+
                 </div>
 
               </div>
@@ -2063,6 +2263,72 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 ) : (
                   <span>Upload & Process</span>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD DEADLINE MODAL */}
+      {isAddDeadlineModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl p-6 shadow-2xl text-slate-900 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-4">
+              <h3 className="font-bold text-sm flex items-center gap-2 text-slate-900">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span>Add Upcoming Deadline</span>
+              </h3>
+              <button onClick={() => setIsAddDeadlineModalOpen(false)} className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-600 mb-1 font-semibold">Task / Assignment Title</label>
+                <input 
+                  type="text" 
+                  value={newDeadlineTitle}
+                  onChange={(e) => setNewDeadlineTitle(e.target.value)}
+                  placeholder="e.g. Complete Programming Assignment 1"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium outline-none focus:border-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 mb-1 font-semibold">Subject / Course Subtitle</label>
+                <input 
+                  type="text" 
+                  value={newDeadlineSubject}
+                  onChange={(e) => setNewDeadlineSubject(e.target.value)}
+                  placeholder="e.g. Introduction to Computer Science"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium outline-none focus:border-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-600 mb-1 font-semibold">Select Deadline Date</label>
+                <input 
+                  type="date" 
+                  value={newDeadlineDate}
+                  onChange={(e) => setNewDeadlineDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium outline-none focus:border-slate-800 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button 
+                onClick={() => setIsAddDeadlineModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAddDeadline}
+                className="px-5 py-2 rounded-lg text-xs font-black bg-slate-900 text-white shadow-md hover:bg-slate-800 active:scale-95 cursor-pointer"
+              >
+                Save Deadline
               </button>
             </div>
           </div>
