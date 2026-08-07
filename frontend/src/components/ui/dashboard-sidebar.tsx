@@ -78,6 +78,13 @@ export interface AcademicFile {
   sizeBytes?: number;
 }
 
+export interface TodoTask {
+  id: string;
+  text: string;
+  completed: boolean;
+  animatingOut?: boolean;
+}
+
 export default function DesktopWebApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -85,6 +92,42 @@ export default function DesktopWebApp() {
   // Trash Bin & Browser Status Link State
   const [trashedFiles, setTrashedFiles] = useState<AcademicFile[]>([]);
   const [hoveredStatusLink, setHoveredStatusLink] = useState<string | null>(null);
+
+  // TO-DO Tasks State
+  const [todoTasks, setTodoTasks] = useState<TodoTask[]>([
+    { id: 'todo-1', text: 'Review Computer Networks Unit 1 notes', completed: false },
+    { id: 'todo-2', text: 'Submit Relational Algebra assignment', completed: false },
+    { id: 'todo-3', text: 'Prepare Python ML Lab script', completed: false },
+  ]);
+  const [newTodoText, setNewTodoText] = useState('');
+
+  const handleAddTodo = () => {
+    if (!newTodoText.trim()) return;
+    const newTask: TodoTask = {
+      id: `todo-${Date.now()}`,
+      text: newTodoText.trim(),
+      completed: false
+    };
+    setTodoTasks(prev => [newTask, ...prev]);
+    setNewTodoText('');
+  };
+
+  const handleCompleteTodo = (id: string) => {
+    setTodoTasks(prev => prev.map(t => {
+      if (t.id === id) {
+        return { ...t, completed: true, animatingOut: true };
+      }
+      return t;
+    }));
+
+    setTimeout(() => {
+      setTodoTasks(prev => prev.filter(t => t.id !== id));
+    }, 450);
+  };
+
+  const handleDeleteTodo = (id: string) => {
+    setTodoTasks(prev => prev.filter(t => t.id !== id));
+  };
 
   // Modals Open State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -809,37 +852,132 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {activeTab === 'dashboard' && (
             <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-300">
               
-              {/* Dashboard Hero Card */}
-              <div className="p-8 rounded-xl border border-slate-200 bg-white shadow-xs">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                
+                {/* 1. Welcome Card (Uniform Text & Styling) */}
+                <div className="lg:col-span-2 p-7 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-6">
                   <div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900">
-                      Welcome back, <span className="text-slate-700">{studentProfile.name}</span>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+                      Welcome back, {studentProfile.name}
                     </h1>
 
-                    <p className="text-xs md:text-sm mt-2 font-medium text-slate-500">
-                      USN: <span className="font-mono text-slate-800 font-bold">{studentProfile.usn}</span> • {studentProfile.branch} ({studentProfile.sem})
+                    <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-2 flex flex-wrap items-center gap-2">
+                      <span>USN: <span className="text-slate-800 font-mono font-bold">{studentProfile.usn}</span></span>
+                      <span className="text-slate-300">•</span>
+                      <span>{studentProfile.branch}</span>
+                      <span className="text-slate-300">•</span>
+                      <span>{studentProfile.sem}</span>
                     </p>
+                  </div>
 
-                    <div className="flex items-center gap-3 mt-6">
-                      <button 
-                        onClick={() => setActiveTab('ai-studio')}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-sm hover:bg-slate-800 cursor-pointer transition-all"
-                      >
-                        <Bot className="w-4 h-4" />
-                        <span>Ask AI Assistant</span>
-                      </button>
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <button 
+                      onClick={() => setActiveTab('ai-studio')}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-sm hover:bg-slate-800 cursor-pointer transition-all active:scale-95"
+                    >
+                      <Bot className="w-4 h-4" />
+                      <span>Ask AI Assistant</span>
+                    </button>
 
+                    <button 
+                      onClick={() => setIsUploadModalOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer transition-all hover:bg-slate-200 active:scale-95"
+                    >
+                      <Upload className="w-4 h-4 text-slate-600" />
+                      <span>Upload File</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Top Right TO-DO Section */}
+                <div className="lg:col-span-1 p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-slate-800" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                          Academic To-Do Tasks
+                        </h3>
+                      </div>
+                      <span className="text-[11px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {todoTasks.length} left
+                      </span>
+                    </div>
+
+                    {/* Add To-Do Input */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <input 
+                        type="text" 
+                        value={newTodoText}
+                        onChange={(e) => setNewTodoText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddTodo(); }}
+                        placeholder="Add a new task..."
+                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none bg-slate-50 focus:border-slate-800 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                      />
                       <button 
-                        onClick={() => setIsUploadModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer transition-all hover:bg-slate-200"
+                        onClick={handleAddTodo}
+                        className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs cursor-pointer transition-all active:scale-95"
+                        title="Add task"
                       >
-                        <Upload className="w-4 h-4 text-slate-600" />
-                        <span>Upload File</span>
+                        <Plus className="w-4 h-4" />
                       </button>
+                    </div>
+
+                    {/* Task List */}
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      {todoTasks.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic text-center py-4">No tasks remaining 🎉</p>
+                      ) : (
+                        todoTasks.map((task) => (
+                          <div 
+                            key={task.id}
+                            className={`flex items-center justify-between p-2 rounded-lg border transition-all duration-300 ${
+                              task.animatingOut 
+                                ? 'border-emerald-200 bg-emerald-50/60 opacity-70 scale-98' 
+                                : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
+                            }`}
+                          >
+                            <span 
+                              className={`text-xs font-medium min-w-0 truncate pr-2 transition-all duration-300 ${
+                                task.completed 
+                                  ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic' 
+                                  : 'text-slate-800'
+                              }`}
+                            >
+                              {task.text}
+                            </span>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Right Tick Mark Button */}
+                              <button 
+                                onClick={() => handleCompleteTodo(task.id)}
+                                disabled={task.completed}
+                                className={`p-1 rounded-md transition-all cursor-pointer ${
+                                  task.completed 
+                                    ? 'bg-emerald-600 text-white' 
+                                    : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                                title="Complete task"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Delete Bin Button */}
+                              <button 
+                                onClick={() => handleDeleteTodo(task.id)}
+                                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                title="Delete task"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
+
               </div>
 
             </div>
