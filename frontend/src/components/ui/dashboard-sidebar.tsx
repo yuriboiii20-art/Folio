@@ -889,10 +889,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </div>
                 </div>
 
-                {/* 2. Top Right TO-DO Section */}
-                <div className="lg:col-span-1 p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                {/* 2. Top Right TO-DO Section (Fixed Height & Scrollable Numbered List) */}
+                <div className="lg:col-span-1 p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between h-full max-h-[220px]">
+                  <div className="flex flex-col h-full overflow-hidden">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2.5 shrink-0">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-slate-800" />
                         <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
@@ -905,7 +905,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     </div>
 
                     {/* Add To-Do Input */}
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 mb-2 shrink-0">
                       <input 
                         type="text" 
                         value={newTodoText}
@@ -916,19 +916,19 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       />
                       <button 
                         onClick={handleAddTodo}
-                        className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs cursor-pointer transition-all active:scale-95"
+                        className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs cursor-pointer transition-all active:scale-95 shrink-0"
                         title="Add task"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
 
-                    {/* Task List */}
-                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                    {/* Numbered & Scrollable Task List */}
+                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[110px]">
                       {todoTasks.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-4">No tasks remaining 🎉</p>
+                        <p className="text-xs text-slate-400 italic text-center py-3">No tasks remaining 🎉</p>
                       ) : (
-                        todoTasks.map((task) => (
+                        todoTasks.map((task, index) => (
                           <div 
                             key={task.id}
                             className={`flex items-center justify-between p-2 rounded-lg border transition-all duration-300 ${
@@ -937,15 +937,20 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                                 : 'border-slate-200 bg-slate-50/80 hover:border-slate-300'
                             }`}
                           >
-                            <span 
-                              className={`text-xs font-medium min-w-0 truncate pr-2 transition-all duration-300 ${
-                                task.completed 
-                                  ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic' 
-                                  : 'text-slate-800'
-                              }`}
-                            >
-                              {task.text}
-                            </span>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
+                              <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                {index + 1}.
+                              </span>
+                              <span 
+                                className={`text-xs font-medium truncate transition-all duration-300 ${
+                                  task.completed 
+                                    ? 'line-through decoration-2 decoration-emerald-600 text-slate-400 italic' 
+                                    : 'text-slate-800'
+                                }`}
+                              >
+                                {task.text}
+                              </span>
+                            </div>
 
                             <div className="flex items-center gap-1 shrink-0">
                               {/* Right Tick Mark Button */}
