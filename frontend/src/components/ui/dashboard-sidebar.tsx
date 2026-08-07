@@ -43,7 +43,9 @@ import {
   Grid,
   List,
   Sliders,
-  FolderTree
+  FolderTree,
+  RotateCcw,
+  Undo2
 } from 'lucide-react';
 
 export type WebNavItem = {
@@ -79,6 +81,10 @@ export interface AcademicFile {
 export default function DesktopWebApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Trash Bin & Browser Status Link State
+  const [trashedFiles, setTrashedFiles] = useState<AcademicFile[]>([]);
+  const [hoveredStatusLink, setHoveredStatusLink] = useState<string | null>(null);
 
   // Modals Open State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -241,6 +247,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     { id: 'home', title: 'Subject Folders', icon: Home, badge: folders.length, badgeColor: 'bg-slate-200 text-slate-800' },
     { id: 'analytics', title: 'Analytics', icon: BarChart2 },
     { id: 'ai-studio', title: 'AI Studio', icon: Bot, badge: 'RAG', badgeColor: 'bg-slate-800 text-white' },
+    { id: 'trash', title: 'Trash', icon: Trash2, badge: trashedFiles.length, badgeColor: trashedFiles.length > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-400' },
     { id: 'profile', title: 'Profile', icon: User },
     { id: 'settings', title: 'Settings', icon: Settings },
   ];
@@ -414,7 +421,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  // Delete File Handler (Database Synced)
+  // Delete File Handler (Moves to Trash)
   const handleDeleteFile = (doc: AcademicFile) => {
     if (appSettings.confirmBeforeDeleting) {
       setDeletingFileTarget(doc);
@@ -423,7 +430,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  const performDeleteFile = async (fileId: string) => {
+  const performDeleteFile = (fileId: string) => {
     const targetFile = files.find(f => f.id === fileId);
     if (targetFile) {
       setFolders(prev => prev.map(f => {
@@ -432,11 +439,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         }
         return f;
       }));
+      setTrashedFiles(prev => [targetFile, ...prev]);
+      setFiles(prev => prev.filter(f => f.id !== fileId));
     }
-    setFiles(prev => prev.filter(f => f.id !== fileId));
     setDeletingFileTarget(null);
+  };
 
-    // Async Database Delete Sync
+  const handleRestoreFile = (doc: AcademicFile) => {
+    setTrashedFiles(prev => prev.filter(f => f.id !== doc.id));
+    setFiles(prev => [doc, ...prev]);
+    setFolders(prev => prev.map(f => {
+      if (f.id === doc.folderId) {
+        return { ...f, fileCount: f.fileCount + 1 };
+      }
+      return f;
+    }));
+  };
+
+  const handlePermanentDeleteFile = async (fileId: string) => {
+    setTrashedFiles(prev => prev.filter(f => f.id !== fileId));
     const numericId = fileId.replace(/[^0-9]/g, '');
     if (numericId) {
       try {
@@ -446,6 +467,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       } catch (e) {
         console.log('Database delete sync offline:', e);
       }
+    }
+  };
+
+  const handleEmptyTrash = () => {
+    if (trashedFiles.length === 0) return;
+    if (confirm("Are you sure you want to permanently empty all items from Trash?")) {
+      setTrashedFiles([]);
     }
   };
 
@@ -592,15 +620,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           }`}>
             <div className="flex items-center gap-2.5 shrink-0 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-slate-700 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
-                D
+                F
               </div>
               {!isSidebarCollapsed && (
                 <div className="flex flex-col overflow-hidden">
                   <span className="font-black text-lg tracking-wider text-white truncate">
-                    Dashboard<span className="text-slate-400">Kit</span>
+                    FOLIO <span className="text-slate-400">STUDIO</span>
                   </span>
                   <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase truncate">
-                    FOLIO Studio
+                    Academic File Manager
                   </span>
                 </div>
               )}
@@ -608,6 +636,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
             <button 
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              onMouseEnter={() => setHoveredStatusLink('sidebar-toggle')}
+              onMouseLeave={() => setHoveredStatusLink(null)}
               className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
               title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             >
@@ -632,18 +662,23 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     onClick={() => {
                       setActiveTab(item.id);
                       setOpenedFolderId(null);
+                      setHoveredStatusLink('#' + item.id);
                     }}
+                    onMouseEnter={() => setHoveredStatusLink('#' + item.id)}
+                    onMouseLeave={() => setHoveredStatusLink(null)}
                     title={isSidebarCollapsed ? item.title : undefined}
-                    className={`w-full flex items-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-3'
+                    className={`w-full flex items-center rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer group ${
+                      isSidebarCollapsed ? 'justify-center p-3 hover:bg-slate-800 hover:scale-105 active:scale-95' : 'justify-between px-3.5 py-3'
                     } ${
                       isActive 
-                        ? 'bg-slate-800 text-white font-black shadow-sm' 
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                        ? 'bg-slate-800 text-white font-black shadow-sm ring-1 ring-slate-700' 
+                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                      <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                        isActive ? 'text-white scale-110' : 'text-slate-400 group-hover:scale-125 group-hover:text-white'
+                      }`} />
                       {!isSidebarCollapsed && <span className="tracking-wide">{item.title}</span>}
                     </div>
 
@@ -666,18 +701,21 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         {/* Profile Footer */}
         <div className="p-3 border-t border-slate-800 bg-[#0f172a] w-full space-y-2">
           <div 
-            className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-all ${
+            className={`flex items-center gap-3 cursor-pointer p-2 rounded-lg transition-all group ${
               activeTab === 'profile' ? 'bg-slate-800 border border-slate-700' : 'hover:bg-slate-800/50'
-            } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+            } ${isSidebarCollapsed ? 'justify-center hover:scale-105' : ''}`}
             onClick={() => {
               setActiveTab('profile');
               setOpenedFolderId(null);
+              setHoveredStatusLink('#profile');
             }}
+            onMouseEnter={() => setHoveredStatusLink('#profile')}
+            onMouseLeave={() => setHoveredStatusLink(null)}
           >
             {studentProfile.avatarUrl ? (
-              <img src={studentProfile.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover shrink-0" />
+              <img src={studentProfile.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover shrink-0 group-hover:scale-110 transition-transform" />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-slate-700 text-white font-black flex items-center justify-center text-xs shrink-0 shadow-xs group-hover:scale-110 transition-transform">
                 JD
               </div>
             )}
@@ -692,13 +730,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           <button 
             onClick={() => alert("Logged out successfully!")}
+            onMouseEnter={() => setHoveredStatusLink('#logout')}
+            onMouseLeave={() => setHoveredStatusLink(null)}
             title={isSidebarCollapsed ? 'Logout' : undefined}
-            className={`w-full flex items-center rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer ${
-              isSidebarCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2'
+            className={`w-full flex items-center rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer group ${
+              isSidebarCollapsed ? 'justify-center p-2.5 hover:scale-105' : 'justify-between px-3 py-2'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <LogOut className="w-4 h-4 shrink-0" />
+              <LogOut className="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" />
               {!isSidebarCollapsed && <span>Logout</span>}
             </div>
             {!isSidebarCollapsed && <div className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />}
@@ -1600,6 +1640,108 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             </div>
           )}
 
+          {/* TRASH TAB */}
+          {activeTab === 'trash' && (
+            <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300">
+              
+              {/* Trash Header Card */}
+              <div className="p-6 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-red-50 border border-red-200 text-red-700 text-[11px] font-black tracking-wider uppercase mb-2">
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Trash Bin Storage</span>
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">Trash Bin & File Recovery</h1>
+                  <p className="text-xs font-medium text-slate-500 mt-1">
+                    Deleted files are safely kept here. Restore items back to your subject folders or permanently remove them.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs font-bold text-slate-500">
+                    {trashedFiles.length} {trashedFiles.length === 1 ? 'item' : 'items'} in Trash
+                  </span>
+                  {trashedFiles.length > 0 && (
+                    <button
+                      onClick={handleEmptyTrash}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Empty Trash</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Trashed Files Listing */}
+              {trashedFiles.length === 0 ? (
+                <div className="p-12 rounded-xl border border-dashed border-slate-300 bg-white text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-700">Trash is Empty</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    When you delete notes or documents from your library, they will appear here before being permanently removed.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                    Deleted Files ({trashedFiles.length})
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {trashedFiles.map((doc) => {
+                      const subjectFolder = folders.find(f => f.id === doc.folderId);
+                      return (
+                        <div 
+                          key={doc.id}
+                          className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
+                                {doc.fileType === 'pdf' ? 'PDF' : 'DOC'}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="text-xs font-bold text-slate-900 truncate" title={doc.title}>
+                                  {doc.title}
+                                </h4>
+                                <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                  Folder: <span className="font-bold text-slate-600">{subjectFolder?.name || 'General'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-mono text-slate-400">{doc.size}</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleRestoreFile(doc)}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
+                                title="Restore to folder"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+                                <span>Restore</span>
+                              </button>
+                              <button
+                                onClick={() => handlePermanentDeleteFile(doc.id)}
+                                className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
+                                title="Delete permanently"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </main>
 
@@ -2026,6 +2168,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Browser Link Status Bar (Bottom-Left Preview) */}
+      {hoveredStatusLink && (
+        <div className="fixed bottom-0 left-0 z-50 bg-[#1e293b]/95 backdrop-blur-xs text-slate-300 text-[11px] font-mono px-3 py-1 border-t border-r border-slate-700/80 rounded-tr-md shadow-xl pointer-events-none transition-all animate-in fade-in slide-in-from-bottom-1 duration-150 flex items-center gap-1.5">
+          <span className="text-sky-400 font-medium">http://localhost:5173/</span>
+          <span className="text-white font-bold">{hoveredStatusLink}</span>
         </div>
       )}
 
