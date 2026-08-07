@@ -248,7 +248,6 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     { id: 'analytics', title: 'Analytics', icon: BarChart2 },
     { id: 'ai-studio', title: 'AI Studio', icon: Bot, badge: 'RAG', badgeColor: 'bg-slate-800 text-white' },
     { id: 'trash', title: 'Trash', icon: Trash2, badge: trashedFiles.length, badgeColor: trashedFiles.length > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-400' },
-    { id: 'profile', title: 'Profile', icon: User },
     { id: 'settings', title: 'Settings', icon: Settings },
   ];
 
