@@ -2170,9 +2170,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         </div>
       )}
 
-      {/* Browser Link Status Bar (Bottom-Left Preview) */}
+      {/* Browser Link Status Bar (Bottom-Right Preview) */}
       {hoveredStatusLink && (
-        <div className="fixed bottom-0 left-0 z-50 bg-[#1e293b]/95 backdrop-blur-xs text-slate-300 text-[11px] font-mono px-3 py-1 border-t border-r border-slate-700/80 rounded-tr-md shadow-xl pointer-events-none transition-all animate-in fade-in slide-in-from-bottom-1 duration-150 flex items-center gap-1.5">
+        <div className="fixed bottom-0 right-0 z-50 bg-black text-slate-300 text-[11px] font-mono px-3 py-1 border-t border-l border-neutral-800 rounded-tl-md shadow-2xl pointer-events-none transition-all animate-in fade-in slide-in-from-bottom-1 duration-150 flex items-center gap-1.5">
           <span className="text-sky-400 font-medium">http://localhost:5173/</span>
           <span className="text-white font-bold">{hoveredStatusLink}</span>
         </div>
