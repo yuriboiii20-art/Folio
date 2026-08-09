@@ -1961,32 +1961,33 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           {/* ANALYTICS TAB */}
           {activeTab === 'analytics' && (
             <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-              <div className="p-8 rounded-xl border border-slate-200 bg-white shadow-2xs">
+              {/* Header Card */}
+              <div className="p-6 rounded-xl border border-slate-200 bg-white shadow-2xs">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200">
                     <Activity className="w-5 h-5" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">Academic Study Analytics</h2>
-                    <p className="text-xs text-slate-500">Track knowledge retrieval, study time, and note distribution</p>
+                    <p className="text-xs text-slate-500">Track knowledge retrieval, study time, subject engagement & AI assistant usage</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-5 rounded-lg border border-slate-200 bg-slate-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
                     <div className="flex justify-between items-center text-xs font-bold mb-2">
                       <span className="text-slate-500">Document Index Storage</span>
-                      <span className="text-slate-800">6.4 MB / 100 MB</span>
+                      <span className="text-slate-800 font-mono">6.4 MB / 100 MB</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                       <div className="h-full bg-slate-800 w-[6.4%] rounded-full"></div>
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-lg border border-slate-200 bg-slate-50">
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
                     <div className="flex justify-between items-center text-xs font-bold mb-2">
                       <span className="text-slate-500">Query Response Latency</span>
-                      <span className="text-slate-800">42ms (Local Ollama)</span>
+                      <span className="text-slate-800 font-mono">42ms (Local Ollama)</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
                       <div className="h-full bg-slate-800 w-[92%] rounded-full"></div>
@@ -1994,6 +1995,115 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </div>
                 </div>
               </div>
+
+              {/* 1. Subject-wise Usage Section */}
+              <div className="p-6 rounded-xl border border-slate-200 bg-slate-900 text-white shadow-md">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+                      SUBJECT ACTIVITY
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400">Total Engagement: 100%</span>
+                </div>
+
+                <div className="space-y-3.5">
+                  {[
+                    { name: 'DBMS', percent: 32 },
+                    { name: 'Operating Systems', percent: 24 },
+                    { name: 'AI / ML', percent: 19 },
+                    { name: 'Computer Networks', percent: 14 },
+                    { name: 'Mathematics', percent: 8 },
+                    { name: 'Others', percent: 3 },
+                  ].map((item) => (
+                    <div key={item.name} className="flex items-center justify-between gap-4">
+                      <span className="w-36 text-xs font-bold text-slate-200 truncate font-mono">
+                        {item.name}
+                      </span>
+                      <div className="flex-1 h-5 bg-slate-800 rounded overflow-hidden p-0.5 border border-slate-700">
+                        <div
+                          className="h-full bg-white rounded-xs transition-all duration-700"
+                          style={{ width: `${item.percent}%` }}
+                        />
+                      </div>
+                      <span className="w-12 text-right text-xs font-mono font-bold text-slate-300">
+                        {item.percent}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. AI Usage Analytics Section */}
+              <div className="p-6 rounded-xl border border-slate-200 bg-slate-900 text-white shadow-md space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">🤖</span>
+                    <h3 className="text-lg font-black text-white tracking-tight">
+                      FOLIO AI Usage Analytics
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Comprehensive study breakdown for your interactive Llama 3.2 study assistant
+                  </p>
+                </div>
+
+                {/* AI Activity Metrics Card */}
+                <div className="p-5 rounded-lg border border-slate-800 bg-slate-950/70 space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+                    <span className="text-xs">🤖</span>
+                    <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+                      AI ACTIVITY OVERVIEW
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-w-md font-mono text-xs">
+                    {[
+                      { label: 'Questions Asked', count: 36 },
+                      { label: 'Documents Summarized', count: 12 },
+                      { label: 'Quizzes Generated', count: 5 },
+                      { label: 'Flashcards Generated', count: 8 },
+                    ].map((stat) => (
+                      <div key={stat.label} className="flex items-center justify-between">
+                        <span className="text-slate-300 font-medium">{stat.label}</span>
+                        <span className="font-bold text-white bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
+                          {stat.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Most Asked Topics */}
+                <div className="space-y-4 pt-2">
+                  <h4 className="text-xs font-mono font-bold tracking-wider text-slate-300 uppercase">
+                    Most Asked Topics
+                  </h4>
+
+                  <div className="space-y-3">
+                    {[
+                      { topic: 'CPU Scheduling', count: 95 },
+                      { topic: 'Normalization', count: 75 },
+                      { topic: 'Deadlocks', count: 60 },
+                      { topic: 'TCP / IP', count: 45 },
+                      { topic: 'Neural Networks', count: 35 },
+                    ].map((item) => (
+                      <div key={item.topic} className="flex items-center gap-4">
+                        <span className="w-36 text-xs font-bold text-slate-300 font-mono truncate">
+                          {item.topic}
+                        </span>
+                        <div className="w-48 h-4 bg-slate-800 rounded overflow-hidden p-0.5 border border-slate-700">
+                          <div
+                            className="h-full bg-white rounded-xs transition-all duration-700"
+                            style={{ width: `${item.count}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
 
