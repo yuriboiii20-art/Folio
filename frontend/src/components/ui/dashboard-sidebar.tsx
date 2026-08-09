@@ -122,7 +122,21 @@ export interface OmniSearchResult {
 }
 
 export default function DesktopWebApp() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const savedTab = localStorage.getItem('folio_active_tab');
+      return savedTab || 'dashboard';
+    } catch (e) {
+      return 'dashboard';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('folio_active_tab', activeTab);
+    } catch (e) { }
+  }, [activeTab]);
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Trash Bin & Browser Status Link State
@@ -338,6 +352,21 @@ export default function DesktopWebApp() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Analytics Bar Animation Mounted State
+  const [isAnalyticsMounted, setIsAnalyticsMounted] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'analytics') {
+      setIsAnalyticsMounted(false);
+      const timer = setTimeout(() => {
+        setIsAnalyticsMounted(true);
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      setIsAnalyticsMounted(false);
+    }
+  }, [activeTab]);
 
   // Highlighted Item State (for Search Redirection visual feedback)
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
@@ -1980,7 +2009,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       <span className="text-slate-800 font-mono">6.4 MB / 100 MB</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                      <div className="h-full bg-slate-800 w-[6.4%] rounded-full"></div>
+                      <div className="h-full bg-slate-800 w-[6.4%] rounded-full animate-in slide-in-from-left duration-700"></div>
                     </div>
                   </div>
 
@@ -1990,21 +2019,21 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       <span className="text-slate-800 font-mono">42ms (Local Ollama)</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-                      <div className="h-full bg-slate-800 w-[92%] rounded-full"></div>
+                      <div className="h-full bg-slate-800 w-[92%] rounded-full animate-in slide-in-from-left duration-700"></div>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* 1. Subject-wise Usage Section */}
-              <div className="p-6 rounded-xl border border-slate-200 bg-slate-900 text-white shadow-md">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+              <div className="p-6 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xs">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+                    <span className="text-[11px] font-mono font-bold tracking-widest text-slate-500 uppercase">
                       SUBJECT ACTIVITY
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-slate-400">Total Engagement: 100%</span>
+                  <span className="text-[11px] font-mono text-slate-500">Total Engagement: 100%</span>
                 </div>
 
                 <div className="space-y-3.5">
@@ -2015,18 +2044,21 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     { name: 'Computer Networks', percent: 14 },
                     { name: 'Mathematics', percent: 8 },
                     { name: 'Others', percent: 3 },
-                  ].map((item) => (
+                  ].map((item, idx) => (
                     <div key={item.name} className="flex items-center justify-between gap-4">
-                      <span className="w-36 text-xs font-bold text-slate-200 truncate font-mono">
+                      <span className="w-36 text-xs font-bold text-slate-800 truncate font-mono">
                         {item.name}
                       </span>
-                      <div className="flex-1 h-5 bg-slate-800 rounded overflow-hidden p-0.5 border border-slate-700">
+                      <div className="flex-1 h-5 bg-slate-100 rounded overflow-hidden p-0.5 border border-slate-200">
                         <div
-                          className="h-full bg-white rounded-xs transition-all duration-700"
-                          style={{ width: `${item.percent}%` }}
+                          className="h-full bg-slate-900 rounded-xs transition-all duration-1000 ease-out shadow-xs"
+                          style={{
+                            width: isAnalyticsMounted ? `${item.percent}%` : '0%',
+                            transitionDelay: `${idx * 100}ms`
+                          }}
                         />
                       </div>
-                      <span className="w-12 text-right text-xs font-mono font-bold text-slate-300">
+                      <span className="w-12 text-right text-xs font-mono font-bold text-slate-700">
                         {item.percent}%
                       </span>
                     </div>
@@ -2035,24 +2067,24 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               </div>
 
               {/* 2. AI Usage Analytics Section */}
-              <div className="p-6 rounded-xl border border-slate-200 bg-slate-900 text-white shadow-md space-y-6">
+              <div className="p-6 rounded-xl border border-slate-200 bg-white text-slate-900 shadow-2xs space-y-6">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg">🤖</span>
-                    <h3 className="text-lg font-black text-white tracking-tight">
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight">
                       FOLIO AI Usage Analytics
                     </h3>
                   </div>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Comprehensive study breakdown for your interactive Llama 3.2 study assistant
                   </p>
                 </div>
 
                 {/* AI Activity Metrics Card */}
-                <div className="p-5 rounded-lg border border-slate-800 bg-slate-950/70 space-y-4">
-                  <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+                <div className="p-5 rounded-lg border border-slate-200 bg-slate-50 space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
                     <span className="text-xs">🤖</span>
-                    <span className="text-[11px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+                    <span className="text-[11px] font-mono font-bold tracking-widest text-slate-500 uppercase">
                       AI ACTIVITY OVERVIEW
                     </span>
                   </div>
@@ -2065,8 +2097,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       { label: 'Flashcards Generated', count: 8 },
                     ].map((stat) => (
                       <div key={stat.label} className="flex items-center justify-between">
-                        <span className="text-slate-300 font-medium">{stat.label}</span>
-                        <span className="font-bold text-white bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
+                        <span className="text-slate-600 font-medium">{stat.label}</span>
+                        <span className="font-bold text-slate-900 bg-white px-2.5 py-0.5 rounded border border-slate-300 shadow-2xs">
                           {stat.count}
                         </span>
                       </div>
@@ -2076,7 +2108,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                 {/* Most Asked Topics */}
                 <div className="space-y-4 pt-2">
-                  <h4 className="text-xs font-mono font-bold tracking-wider text-slate-300 uppercase">
+                  <h4 className="text-xs font-mono font-bold tracking-wider text-slate-700 uppercase">
                     Most Asked Topics
                   </h4>
 
@@ -2087,15 +2119,18 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       { topic: 'Deadlocks', count: 60 },
                       { topic: 'TCP / IP', count: 45 },
                       { topic: 'Neural Networks', count: 35 },
-                    ].map((item) => (
+                    ].map((item, idx) => (
                       <div key={item.topic} className="flex items-center gap-4">
-                        <span className="w-36 text-xs font-bold text-slate-300 font-mono truncate">
+                        <span className="w-36 text-xs font-bold text-slate-700 font-mono truncate">
                           {item.topic}
                         </span>
-                        <div className="w-48 h-4 bg-slate-800 rounded overflow-hidden p-0.5 border border-slate-700">
+                        <div className="w-48 h-4 bg-slate-100 rounded overflow-hidden p-0.5 border border-slate-200">
                           <div
-                            className="h-full bg-white rounded-xs transition-all duration-700"
-                            style={{ width: `${item.count}%` }}
+                            className="h-full bg-slate-900 rounded-xs transition-all duration-1000 ease-out shadow-xs"
+                            style={{
+                              width: isAnalyticsMounted ? `${item.count}%` : '0%',
+                              transitionDelay: `${idx * 100}ms`
+                            }}
                           />
                         </div>
                       </div>
