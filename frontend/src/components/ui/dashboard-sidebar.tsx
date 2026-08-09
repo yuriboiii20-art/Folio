@@ -1426,33 +1426,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                           return (
                             <div
                               key={folder.id}
-                              onClick={() => {
-                                setOpenedFolderId(folder.id);
-                                setActiveTab('home');
-                              }}
-                              className="flex items-center justify-between p-2 rounded-lg border border-amber-200/80 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 transition-all cursor-pointer group"
+                              className="relative group"
                             >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-6 h-6 rounded-md bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
-                                  <FolderClosed className="w-3 h-3" />
-                                </div>
-                                <div className="min-w-0 flex items-center gap-2">
-                                  <h4 className="text-xs font-bold text-slate-900 truncate">
-                                    {folder.name}
-                                  </h4>
-                                  <span className="text-[9px] font-black px-1 py-0.2 rounded border border-slate-300 bg-white text-slate-700 shrink-0">
-                                    {folder.code}
-                                  </span>
-                                </div>
-                              </div>
-
                               <button
                                 onClick={(e) => handleToggleStarFolder(folder.id, e)}
-                                className="p-1 text-amber-500 hover:text-amber-700 transition-all cursor-pointer"
+                                className="absolute top-2 right-2 z-20 p-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100 shadow-2xs"
                                 title="Unstar folder"
                               >
                                 <Star className="w-3.5 h-3.5 fill-amber-400" />
                               </button>
+                              <FolderCard
+                                title={folder.name}
+                                code={folder.code}
+                                description={folder.description}
+                                fileCount={folderFiles.length}
+                                onClick={() => {
+                                  setOpenedFolderId(folder.id);
+                                  setActiveTab('home');
+                                }}
+                              />
                             </div>
                           );
                         })}
