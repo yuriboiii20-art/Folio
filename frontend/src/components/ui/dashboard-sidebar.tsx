@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchInput } from './search-input';
 import {
+  BarChart as VisxBarChart,
+  Bar as VisxBar,
+  BarXAxis as VisxBarXAxis,
+  ChartTooltip as VisxChartTooltip,
+  LinearGradient as VisxLinearGradient,
+  BarLineIndicator as VisxBarLineIndicator
+} from './bar-chart';
+import {
   LayoutGrid,
   Home,
   BarChart2,
@@ -48,7 +56,8 @@ import {
   Undo2,
   Calendar,
   CalendarDays,
-  HardDrive
+  HardDrive,
+  Star
 } from 'lucide-react';
 
 export type WebNavItem = {
@@ -66,6 +75,7 @@ export interface SubjectFolder {
   description: string;
   fileCount: number;
   colorHex?: string;
+  isStarred?: boolean;
 }
 
 export interface AcademicFile {
@@ -79,6 +89,7 @@ export interface AcademicFile {
   contentSnippet?: string;
   fileType?: 'pdf' | 'text' | 'doc';
   sizeBytes?: number;
+  isStarred?: boolean;
 }
 
 export interface TodoTask {
@@ -236,7 +247,7 @@ export default function DesktopWebApp() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      alert('✅ Complete backup archive created and downloaded to your device!');
+      showNotification('BACKUP CREATED', 'Complete archive saved to your device', 'success');
     }, 900);
   };
 
@@ -276,8 +287,40 @@ export default function DesktopWebApp() {
     setTodoTasks(prev => prev.filter(t => t.id !== id));
   };
 
+  // Toggle Star Handlers for Folders & Files
+  const handleToggleStarFolder = (folderId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) {
+        return { ...f, isStarred: !f.isStarred };
+      }
+      return f;
+    }));
+  };
+
+  const handleToggleStarFile = (fileId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setFiles(prev => prev.map(f => {
+      if (f.id === fileId) {
+        return { ...f, isStarred: !f.isStarred };
+      }
+      return f;
+    }));
+  };
+
   // Modals Open State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [notificationModal, setNotificationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message?: string;
+    type: 'success' | 'warning' | 'info';
+  } | null>(null);
+
+  const showNotification = (title: string, message?: string, type: 'success' | 'warning' | 'info' = 'success') => {
+    setNotificationModal({ isOpen: true, title, message, type });
+  };
+
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
@@ -715,7 +758,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
   const handleUploadFileSubmit = async () => {
     if (!selectedUploadFile) {
-      alert("Please click 'Choose File' or browse and select a document from your device first.");
+      showNotification("NO FILE SELECTED", "Please browse and select a document from your device first.", "warning");
       return;
     }
 
@@ -790,11 +833,12 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         console.log('Backend upload API sync:', e);
       }
 
-      alert(`✅ Success! "${fileNameToUse}" has been uploaded and stored in the database!`);
+      const uploadedName = fileNameToUse;
       setSelectedUploadFile(null);
       setIsUploadModalOpen(false);
+      showNotification('FILE UPLOADED', uploadedName, 'success');
     } catch (err: any) {
-      alert("Upload failed: " + (err?.message || "Error processing file"));
+      showNotification("UPLOAD FAILED", err?.message || "Error processing file", "warning");
     } finally {
       setIsUploading(false);
     }
@@ -910,7 +954,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       console.log('Database password sync offline:', e);
     }
 
-    alert('Password changed successfully and updated in database!');
+    showNotification('PASSWORD CHANGED', 'Updated securely in database', 'success');
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -1101,7 +1145,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           </div>
 
           <button
-            onClick={() => alert("Logged out successfully!")}
+            onClick={() => showNotification("LOGGED OUT", "Session terminated safely", "info")}
             onMouseEnter={() => setHoveredStatusLink('#logout')}
             onMouseLeave={() => setHoveredStatusLink(null)}
             title={isSidebarCollapsed ? 'Logout' : undefined}
@@ -1217,43 +1261,249 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           {/* DASHBOARD TAB */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-300">
+            <div className="space-y-4 max-w-6xl mx-auto animate-in fade-in duration-300">
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 
-                {/* Left Column: Welcome Card */}
-                <div className="lg:col-span-2 h-[210px] p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0">
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-                      Welcome back, {studentProfile.name}
-                    </h1>
+                {/* Left Column Stack: 1. Welcome Card + 2. Resource & Activity Overview Box + 3. Starred Box */}
+                <div className="lg:col-span-2 space-y-4">
 
-                    <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-2 flex flex-wrap items-center gap-2">
-                      <span>USN: <span className="text-slate-800 font-mono font-bold">{studentProfile.usn}</span></span>
-                      <span className="text-slate-300">•</span>
-                      <span>{studentProfile.branch}</span>
-                      <span className="text-slate-300">•</span>
-                      <span>{studentProfile.sem}</span>
-                    </p>
+                  {/* 1. Welcome Card (Compact) */}
+                  <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-between gap-4 shrink-0">
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
+                        Welcome back, {studentProfile.name}
+                      </h1>
+
+                      <p className="text-xs font-semibold text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                        <span>USN: <span className="text-slate-800 font-mono font-bold">{studentProfile.usn}</span></span>
+                        <span className="text-slate-300">•</span>
+                        <span>{studentProfile.branch}</span>
+                        <span className="text-slate-300">•</span>
+                        <span>{studentProfile.sem}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setActiveTab('ai-studio')}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-black shadow-xs hover:bg-slate-800 cursor-pointer transition-all active:scale-95"
+                      >
+                        <Bot className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Ask AI</span>
+                      </button>
+
+                      <button
+                        onClick={() => setIsUploadModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer transition-all hover:bg-slate-200 active:scale-95"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-slate-600" />
+                        <span className="hidden sm:inline">Upload</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                    <button
-                      onClick={() => setActiveTab('ai-studio')}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-sm hover:bg-slate-800 cursor-pointer transition-all active:scale-95"
-                    >
-                      <Bot className="w-4 h-4" />
-                      <span>Ask AI Assistant</span>
-                    </button>
+                  {/* 2. Resource Overview & Weekly Study Activity (Compact Single Row) */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between gap-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-slate-800" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                          Resource & Activity Overview
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-slate-400">
+                        Avg: 2.8 hrs/day
+                      </span>
+                    </div>
 
-                    <button
-                      onClick={() => setIsUploadModalOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer transition-all hover:bg-slate-200 active:scale-95"
-                    >
-                      <Upload className="w-4 h-4 text-slate-600" />
-                      <span>Upload File</span>
-                    </button>
+                    <div className="grid grid-cols-12 gap-3 items-center">
+                      {/* Left: Compact Total Folders & Files Count Pills (4 cols) */}
+                      <div className="col-span-12 sm:col-span-4 flex flex-row sm:flex-col gap-2">
+                        {/* Total Folders Small Box */}
+                        <div
+                          onClick={() => setActiveTab('home')}
+                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                              <FolderClosed className="w-3.5 h-3.5 text-slate-200" />
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block leading-none">
+                                Folders
+                              </span>
+                              <span className="text-base font-black text-slate-900 leading-tight">
+                                {folders.length}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                        </div>
+
+                        {/* Total Files Small Box */}
+                        <div
+                          onClick={() => setActiveTab('home')}
+                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                              <FileText className="w-3.5 h-3.5 text-slate-200" />
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block leading-none">
+                                Files
+                              </span>
+                              <span className="text-base font-black text-slate-900 leading-tight">
+                                {files.length}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                      </div>
+
+                      {/* Right: Visx-powered Animated BarChart (8 cols) */}
+                      <div className="col-span-12 sm:col-span-8 p-1.5 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden">
+                        <VisxBarChart
+                          data={[
+                            { day: 'Mon', hours: 2.5 },
+                            { day: 'Tue', hours: 4.0 },
+                            { day: 'Wed', hours: 1.8 },
+                            { day: 'Thu', hours: 3.2 },
+                            { day: 'Fri', hours: 2.0 },
+                            { day: 'Sat', hours: 3.8 },
+                            { day: 'Sun', hours: 2.2 },
+                          ]}
+                          xDataKey="day"
+                          barGap={0.35}
+                          aspectRatio="3.5 / 1"
+                          margin={{ top: 12, right: 12, bottom: 28, left: 12 }}
+                          animationDuration={900}
+                        >
+                          <VisxLinearGradient
+                            from="#0f172a"
+                            to="#475569"
+                            id="weeklyStudyGradient"
+                          />
+                          <VisxBar
+                            dataKey="hours"
+                            fill="url(#weeklyStudyGradient)"
+                            lineCap="butt"
+                          />
+                          <VisxBarXAxis showAllLabels maxLabels={7} />
+                          <VisxChartTooltip showCrosshair={false} showDots={false} />
+                          <VisxBarLineIndicator data={[
+                            { day: 'Mon', hours: 2.5 },
+                            { day: 'Tue', hours: 4.0 },
+                            { day: 'Wed', hours: 1.8 },
+                            { day: 'Thu', hours: 3.2 },
+                            { day: 'Fri', hours: 2.0 },
+                            { day: 'Sat', hours: 3.8 },
+                            { day: 'Sun', hours: 2.2 },
+                          ]} valueKey="hours" xKey="day" stroke="#0f172a" strokeWidth={1.5} />
+                        </VisxBarChart>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* 3. Starred Files & Folders Box Section (Compact) */}
+                  <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                          Starred Items
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                        {folders.filter(f => f.isStarred).length + files.filter(f => f.isStarred).length} items
+                      </span>
+                    </div>
+
+                    {folders.filter(f => f.isStarred).length === 0 && files.filter(f => f.isStarred).length === 0 ? (
+                      <div className="text-center py-3 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                        <p className="text-[11px] font-medium text-slate-500">
+                          Star <Star className="w-3 h-3 inline text-amber-400 fill-amber-400 mx-0.5" /> any file or folder to pin it here.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                        {/* Starred Folders */}
+                        {folders.filter(f => f.isStarred).map((folder) => {
+                          const folderFiles = files.filter(f => f.folderId === folder.id);
+                          return (
+                            <div
+                              key={folder.id}
+                              onClick={() => {
+                                setOpenedFolderId(folder.id);
+                                setActiveTab('home');
+                              }}
+                              className="flex items-center justify-between p-2 rounded-lg border border-amber-200/80 bg-amber-50/40 hover:bg-amber-50 hover:border-amber-300 transition-all cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-md bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
+                                  <FolderClosed className="w-3 h-3" />
+                                </div>
+                                <div className="min-w-0 flex items-center gap-2">
+                                  <h4 className="text-xs font-bold text-slate-900 truncate">
+                                    {folder.name}
+                                  </h4>
+                                  <span className="text-[9px] font-black px-1 py-0.2 rounded border border-slate-300 bg-white text-slate-700 shrink-0">
+                                    {folder.code}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={(e) => handleToggleStarFolder(folder.id, e)}
+                                className="p-1 text-amber-500 hover:text-amber-700 transition-all cursor-pointer"
+                                title="Unstar folder"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                              </button>
+                            </div>
+                          );
+                        })}
+
+                        {/* Starred Files */}
+                        {files.filter(f => f.isStarred).map((file) => (
+                          <div
+                            key={file.id}
+                            className="flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 rounded-md bg-slate-200 border border-slate-300 text-slate-700 flex items-center justify-center shrink-0">
+                                <FileText className="w-3 h-3" />
+                              </div>
+                              <h4 className="text-xs font-bold text-slate-900 truncate">
+                                {formatFileTitle(file.title)}
+                              </h4>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => setReadingFile(file)}
+                                className="p-0.5 px-1.5 rounded bg-slate-900 text-white text-[9px] font-bold hover:bg-slate-800 cursor-pointer flex items-center gap-1"
+                                title="Read In-App"
+                              >
+                                <Eye className="w-2.5 h-2.5" />
+                                <span>Read</span>
+                              </button>
+                              <button
+                                onClick={(e) => handleToggleStarFile(file.id, e)}
+                                className="p-1 text-amber-500 hover:text-amber-700 transition-all cursor-pointer"
+                                title="Unstar file"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
                 {/* Right Column Stack: 1. Academic To-Do Tasks + 2. Upcoming Deadlines */}
@@ -1546,6 +1796,18 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                             <div className="flex items-center gap-2 self-end sm:self-auto">
                               <button
+                                onClick={(e) => handleToggleStarFile(doc.id, e)}
+                                className={`p-2.5 rounded-lg border transition-colors cursor-pointer ${
+                                  doc.isStarred
+                                    ? 'border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100'
+                                    : 'border-slate-300 bg-white text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
+                                }`}
+                                title={doc.isStarred ? "Starred (Click to Unstar)" : "Star this File"}
+                              >
+                                <Star className={`w-4 h-4 ${doc.isStarred ? 'fill-amber-400' : ''}`} />
+                              </button>
+
+                              <button
                                 onClick={() => handleDownloadToDevice(doc)}
                                 className="p-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                                 title="Download File to Device Explorer"
@@ -1611,9 +1873,22 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                             <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center transition-transform group-hover:scale-110">
                               <FolderClosed className="w-6 h-6" />
                             </div>
-                            <span className="px-2.5 py-1 text-[11px] font-black rounded-md border border-slate-300 bg-slate-100 text-slate-800">
-                              {folder.code}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => handleToggleStarFolder(folder.id, e)}
+                                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                  folder.isStarred
+                                    ? 'border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100'
+                                    : 'border-slate-200 bg-slate-50 text-slate-400 hover:text-amber-500 hover:bg-amber-50/50'
+                                }`}
+                                title={folder.isStarred ? "Starred Folder (Click to Unstar)" : "Star this Folder"}
+                              >
+                                <Star className={`w-4 h-4 ${folder.isStarred ? 'fill-amber-400' : ''}`} />
+                              </button>
+                              <span className="px-2.5 py-1 text-[11px] font-black rounded-md border border-slate-300 bg-slate-100 text-slate-800">
+                                {folder.code}
+                              </span>
+                            </div>
                           </div>
 
                           <h3 className="text-lg font-bold group-hover:text-slate-900 text-slate-900">
@@ -1877,7 +2152,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
-                        onClick={() => alert("Logged out successfully!")}
+                        onClick={() => showNotification("LOGGED OUT", "Session terminated safely", "info")}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all cursor-pointer"
                       >
                         <LogOut className="w-4 h-4" />
@@ -2354,7 +2629,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               </button>
               <button
                 onClick={() => {
-                  alert("Account deleted.");
+                  showNotification("ACCOUNT DELETED", "All student data has been erased", "warning");
                   setIsDeleteAccountModalOpen(false);
                 }}
                 className="px-5 py-2 rounded-lg text-xs font-black bg-rose-600 text-white hover:bg-rose-700 shadow-md"
@@ -2688,6 +2963,48 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 Save Deadline
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM THEMED GLOBAL NOTIFICATION MODAL */}
+      {notificationModal?.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl text-slate-900 text-center animate-in zoom-in-95 duration-150 flex flex-col items-center space-y-4">
+            
+            {/* Context Icon */}
+            {notificationModal.type === 'warning' ? (
+              <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shadow-xs">
+                <AlertTriangle className="w-7 h-7 stroke-[2.5]" />
+              </div>
+            ) : notificationModal.type === 'info' ? (
+              <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-300 text-slate-700 flex items-center justify-center shadow-xs">
+                <Sparkles className="w-7 h-7 stroke-[2.5]" />
+              </div>
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shadow-xs">
+                <Check className="w-8 h-8 stroke-[3]" />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center justify-center gap-1.5 uppercase">
+                <span>{notificationModal.title}</span>
+              </h3>
+              {notificationModal.message && (
+                <p className="text-xs font-semibold text-slate-500 max-w-[270px] mx-auto leading-relaxed">
+                  {notificationModal.message}
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={() => setNotificationModal(null)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-xs font-black shadow-md hover:bg-slate-800 transition-all cursor-pointer active:scale-95"
+            >
+              OK
+            </button>
+
           </div>
         </div>
       )}
