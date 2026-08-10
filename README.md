@@ -4,6 +4,16 @@ FOLIO is a modern, high-performance academic file management and AI study studio
 
 ---
 
+## 📚 Table of Contents
+- [Key Features & Accomplishments](#key-features--accomplishments)
+- [Architecture & Design Methodology](#architecture--design-methodology)
+- [Quick Start](#quick-start)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+
+---
+
 ## Key Features & Accomplishments
 
 ### 🎨 1. Dashboard & Slate-Gray Design System
@@ -32,8 +42,8 @@ FOLIO is a modern, high-performance academic file management and AI study studio
 
 ### 🐘 6. PostgreSQL 15 Database Integration
 - **Primary Database**: Integrated PostgreSQL 15 (`foliodb` on port `5432`) with Spring Boot JPA entities.
-- **Automated DDL Schema**: Complete PostgreSQL DDL initialization script (`schema-postgres.sql`) with tables for `users`, `subjects`, `documents`, `document_chunks`, and `personal_notes`.
-- **Docker Compose & Adminer Web UI**: Included `docker-compose.yml` with PostgreSQL 15 container and Adminer Web Database Explorer (`http://localhost:8088/`).
+- **Automated DDL Schema**: Complete PostgreSQL DDL initialization script ([schema-postgres.sql](file:///c:/Users/yaqub%20ahmed/Desktop/FOLIO/backend/src/main/resources/schema-postgres.sql)) with tables for `users`, `subjects`, `documents`, `document_chunks`, and `personal_notes`.
+- **Docker Compose & Adminer Web UI**: Included [docker-compose.yml](file:///c:/Users/yaqub%20ahmed/Desktop/FOLIO/docker-compose.yml) with PostgreSQL 15 container and Adminer Web Database Explorer (`http://localhost:8088/`).
 - **H2 Fallback**: Provided `application-h2.properties` for zero-setup offline development.
 
 ### 📄 7. In-App Document Reader & AI Assistant
@@ -43,9 +53,17 @@ FOLIO is a modern, high-performance academic file management and AI study studio
 
 ---
 
+## Architecture & Design Methodology
+
+FOLIO follows strict UX design principles focusing on single-viewport efficiency, soft warm pastel accents for folder interactions, and non-intrusive modal overlays. 
+- For detailed UI design principles and palette specifications, see [DESIGN_METHODOLOGY.md](file:///c:/Users/yaqub%20ahmed/Desktop/FOLIO/DESIGN_METHODOLOGY.md).
+- For complete technical implementation, architecture diagrams, and service code structures, see [IMPLEMENTATION_GUIDE.md](file:///c:/Users/yaqub%20ahmed/Desktop/FOLIO/IMPLEMENTATION_GUIDE.md).
+
+---
+
 ## Quick Start
 
-### Frontend (Vite + React + Tailwind)
+### 1. Frontend (Vite + React + Tailwind)
 ```bash
 cd frontend
 npm install
@@ -53,7 +71,7 @@ npm run dev
 # Running at http://localhost:5173/
 ```
 
-### Backend (Spring Boot + PostgreSQL 15)
+### 2. Backend (Spring Boot + PostgreSQL 15)
 ```bash
 # Option A: Run PostgreSQL 15 via Docker
 docker compose up -d
@@ -67,7 +85,38 @@ cd backend
 ---
 
 ## Tech Stack
-- **Frontend**: React 19, TypeScript, Vite, Tailwind CSS v4, Visx, Motion, Lucide Icons
-- **Backend**: Java 25 / 17, Spring Boot 3.2, Spring Security, Apache Tika
-- **Database**: PostgreSQL 15 (Primary), H2 Database (Fallback)
+- **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS v4, Visx (`@visx/scale`, `@visx/grid`, `@visx/gradient`), Motion (`motion/react`), Lucide Icons
+- **Backend**: Java 25 / 17, Spring Boot 3.2, Spring Security + JWT, Apache Tika
+- **Database**: PostgreSQL 15 (Production / Primary), H2 Database (Development / Offline Fallback)
+- **AI Engine**: Local Ollama AI (Llama 3.2 RAG Vector Query)
 - **Containerization**: Docker & Docker Compose
+
+---
+
+## Project Structure
+
+```
+FOLIO/
+├── backend/                  # Spring Boot REST API Service
+│   ├── src/main/java/com/folio/
+│   │   ├── controller/      # API Controllers (Auth, Document, Note, Subject)
+│   │   ├── model/           # JPA Entities (User, Subject, Document, Note)
+│   │   └── service/         # Business Logic & Ollama RAG Integration
+│   └── src/main/resources/  # Database schemas & application properties
+├── frontend/                 # React 19 + Vite Frontend SPA
+│   ├── src/
+│   │   ├── components/ui/   # Reusable Slate-Gray UI & 3D Folder components
+│   │   └── lib/             # Utility helpers & state management
+├── mobile/                   # Mobile application codebase
+├── docker-compose.yml        # PostgreSQL 15 & Adminer container config
+├── DESIGN_METHODOLOGY.md     # UI/UX design specifications & palette guide
+├── IMPLEMENTATION_GUIDE.md   # System architecture & component mapping
+└── README.md                 # Project Overview & Getting Started
+```
+
+---
+
+## Documentation
+- 🎨 [DESIGN_METHODOLOGY.md](file:///c:/Users/yaqub%20ahmed/Desktop/FOLIO/DESIGN_METHODOLOGY.md)
+- ⚙️ [IMPLEMENTATION_GUIDE.md](file:///c:/Users/yaqub%20ahmed/Desktop/FOLIO/IMPLEMENTATION_GUIDE.md)
+
