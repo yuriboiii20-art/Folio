@@ -4,7 +4,16 @@ FOLIO is a modern, high-performance academic file management and AI study studio
 
 ---
 
+## 🖼️ Application Interface Preview
+
+| Dashboard & Viewport View | Academic & AI Analytics Studio |
+| :---: | :---: |
+| ![FOLIO Dashboard Preview](assets/images/dashboard_view.png) | ![FOLIO Analytics Studio Preview](assets/images/analytics_view.png) |
+
+---
+
 ## 📚 Table of Contents
+- [Application Interface Preview](#️-application-interface-preview)
 - [Key Features & Accomplishments](#key-features--accomplishments)
 - [Architecture & Design Methodology](#architecture--design-methodology)
 - [Quick Start](#quick-start)
