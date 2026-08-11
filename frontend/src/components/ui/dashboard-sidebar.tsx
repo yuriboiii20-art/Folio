@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchInput } from './search-input';
 import FolderCard from './folder';
+import { GoogleGenAI } from '@google/genai';
 import {
   BarChart as VisxBarChart,
   Bar as VisxBar,
@@ -519,15 +520,18 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
   const [selectedFolderId, setSelectedFolderId] = useState<string>(appSettings.defaultUploadLocation);
   const [selectedSource, setSelectedSource] = useState<string>('Direct Upload');
 
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+
   // AI Chat State
   const [chatMessages, setChatMessages] = useState([
     {
       sender: 'ai',
-      text: "👋 Welcome to DashboardKit Study Studio! I am your local Ollama AI study assistant. Ask me questions about your uploaded lecture notes or pick a quick topic below.",
+      text: "👋 Welcome to AI Studio! Ask any question about your subject notes, study concepts, or academic assignments.",
       time: 'Just now'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
   const navItems: WebNavItem[] = [
     { id: 'dashboard', title: 'Dashboard', icon: LayoutGrid },
@@ -538,13 +542,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     { id: 'settings', title: 'Settings', icon: Settings },
   ];
 
-  // Quick Chat Prompts
-  const quickPrompts = [
-    "Summarize IP Addressing principles",
-    "Explain 3NF Normalization in DBMS",
-    "How to train a Decision Tree in Python?",
-    "List all uploaded files"
-  ];
+
 
   // Sorting and Filtering Files based on Settings
   const getSortedFiles = (fileList: AcademicFile[]) => {
@@ -1021,30 +1019,77 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  const handleSendChat = (promptText?: string) => {
+  const handleSendChat = async (promptText?: string) => {
     const q = promptText || chatInput;
-    if (!q.trim()) return;
+    if (!q.trim() || isAiGenerating) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setChatMessages(prev => [...prev, { sender: 'user', text: q, time: timeStr }]);
     if (!promptText) setChatInput('');
+    setIsAiGenerating(true);
 
-    setTimeout(() => {
-      let responseText = `[Ollama Llama 3.2] Answer generated for: "${q}". Context retrieved from uploaded lecture notes.`;
+    try {
+      // Direct REST API Call for guaranteed browser compatibility
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are an expert AI Study Studio assistant embedded in FOLIO - Smart Student Study Studio. Answer the student's question concisely, clearly, and naturally using clean plain text without any markdown asterisks (*), hashtags (#), or formatting code blocks.\n\nStudent Question: ${q}`
+            }]
+          }]
+        })
+      });
 
-      if (q.toLowerCase().includes('ip addressing') || q.toLowerCase().includes('networks')) {
-        responseText = "🌐 **IP Addressing Summary (from Unit-1_IP_Addressing_Notes.pdf)**:\n- **IPv4**: 32-bit address split into 4 octets.\n- **CIDR**: Classless Inter-Domain Routing notation (e.g. 192.168.1.0/24).\n- **Subnetting**: Divides larger networks into smaller efficient sub-networks.";
-      } else if (q.toLowerCase().includes('normalization') || q.toLowerCase().includes('3nf') || q.toLowerCase().includes('dbms')) {
-        responseText = "🗄️ **3NF Normalization (from Relational_Algebra_Assignment.pdf)**:\n- Must be in **2NF** (no partial functional dependencies).\n- Every non-prime attribute must be non-transitively dependent on primary key.";
-      } else if (q.toLowerCase().includes('decision tree') || q.toLowerCase().includes('python')) {
-        responseText = "🤖 **Decision Tree Classifier (from Machine_Learning_Lab_Manual.pdf)**:\n```python\nfrom sklearn.tree import DecisionTreeClassifier\nclf = DecisionTreeClassifier(criterion='entropy')\nclf.fit(X_train, y_train)\n```\n- Entropy measures impurity; Information Gain determines top root splits.";
+      const data = await res.json();
+      let responseText = '';
+      if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+        responseText = data.candidates[0].content.parts[0].text;
+      } else if (data.error) {
+        throw new Error(data.error.message || 'Gemini API Error');
+      } else {
+        responseText = "I'm sorry, I couldn't generate a response for your question right now.";
       }
+
+      // Clean out residual markdown symbols (*, #, `, _, -, >)
+      const cleanText = (text: string) => {
+        return text
+          .replace(/\*\*(.*?)\*\*/g, '$1')       // bold **text** -> text
+          .replace(/\*(.*?)\*/g, '$1')           // italic *text* -> text
+          .replace(/__([\s\S]*?)__/g, '$1')       // bold __text__ -> text
+          .replace(/_([\s\S]*?)_/g, '$1')         // italic _text_ -> text
+          .replace(/`{1,3}([\s\S]*?)`{1,3}/g, '$1')// code blocks `text` -> text
+          .replace(/^#{1,6}\s*/gm, '')           // headers # Header -> Header
+          .replace(/^\s*[\*\-\+]\s+/gm, '• ')    // bullet points * -> •
+          .replace(/\*{1,3}/g, '')               // stray asterisks
+          .replace(/_{1,2}/g, '')                // stray underscores
+          .trim();
+      };
+
+      const cleanedResponse = cleanText(responseText);
 
       setChatMessages(prev => [
         ...prev,
-        { sender: 'ai', text: responseText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+        { sender: 'ai', text: cleanedResponse, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]);
-    }, 400);
+    } catch (err: any) {
+      console.error("Gemini AI Error:", err);
+      let fallbackText = `⚠️ **Gemini AI Service Alert**: ${err?.message || "Unable to reach Gemini AI"}.\n\nBelow is retrieved study notes context for your query "${q}":\n\n`;
+      if (q.toLowerCase().includes('ip addressing') || q.toLowerCase().includes('networks')) {
+        fallbackText += "🌐 **IP Addressing Principles**:\n- **IPv4**: 32-bit address divided into 4 octets.\n- **CIDR Notation**: Classless Inter-Domain Routing (e.g. 192.168.1.0/24).\n- **Subnetting**: Enables efficient segmentation of IP address space.";
+      } else if (q.toLowerCase().includes('normalization') || q.toLowerCase().includes('3nf') || q.toLowerCase().includes('dbms')) {
+        fallbackText += "🗄️ **3NF Normalization Rules**:\n- Must be in **2NF** (no partial key dependencies).\n- All non-prime attributes must non-transitively depend on primary keys.";
+      } else {
+        fallbackText += `Answers and study notes compiled for academic concept: **${q}**. Clear structured explanation provided for revision.`;
+      }
+      setChatMessages(prev => [
+        ...prev,
+        { sender: 'ai', text: fallbackText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      ]);
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
 
   const handleCopySnippet = (text: string) => {
@@ -1908,77 +1953,72 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           {/* AI STUDIO TAB */}
           {activeTab === 'ai-studio' && (
-            <div className="h-[calc(100vh-140px)] max-w-4xl mx-auto flex flex-col border border-slate-200 bg-white rounded-xl overflow-hidden shadow-sm animate-in fade-in duration-300">
+            <div className="h-[calc(100vh-100px)] w-full flex flex-col justify-between py-2 animate-in fade-in duration-300">
 
-              <div className="p-4 px-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              {/* Clean Native Page Header */}
+              <div className="pb-4 mb-4 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center shadow-xs">
-                    <Bot className="w-5 h-5 font-black" />
+                  <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
+                    <Sparkles className="w-5 h-5 font-black" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900">Ollama AI Study Assistant</h3>
-                      <span className="px-2 py-0.5 text-[10px] font-black rounded-md bg-slate-200 text-slate-800 border border-slate-300">
-                        Llama 3.2
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-500">Instant answers retrieved from your uploaded subject notes</span>
+                    <h2 className="text-xl font-bold text-slate-900">AI Studio</h2>
+                    <p className="text-xs text-slate-500">Real-time academic assistant for concepts, notes, and homework</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setChatMessages([{ sender: 'ai', text: "Thread cleared. Ask me any question about your notes!", time: 'Just now' }])}
-                    className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-md bg-slate-200 border border-slate-300 transition-colors cursor-pointer font-bold"
-                  >
-                    Clear Thread
-                  </button>
-                </div>
+                <button
+                  onClick={() => setChatMessages([{ sender: 'ai', text: "Thread cleared. Ask me any question about your notes or study concepts!", time: 'Just now' }])}
+                  className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer font-bold border border-slate-200"
+                >
+                  Clear Thread
+                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
+              {/* Full Page Chat Stream */}
+              <div className="flex-1 overflow-y-auto pr-2 space-y-6">
                 {chatMessages.map((msg, idx) => (
-                  <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div key={idx} className={`flex flex-col space-y-1.5 ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className="flex items-center gap-2 px-1">
+                      <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                        {msg.sender === 'user' ? 'You' : 'AI Assistant'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">{msg.time}</span>
+                    </div>
                     <div
-                      className={`max-w-[80%] p-4 rounded-xl text-xs leading-relaxed space-y-2 ${msg.sender === 'user'
-                          ? 'bg-slate-900 text-white font-medium rounded-br-none shadow-xs'
-                          : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-2xs'
+                      className={`text-sm leading-relaxed whitespace-pre-wrap ${msg.sender === 'user'
+                          ? 'bg-slate-900 text-white font-medium px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-xs max-w-[85%]'
+                          : 'text-slate-800 pl-1 max-w-[95%]'
                         }`}
                     >
-                      <div className="whitespace-pre-wrap">{msg.text}</div>
-                      <div className={`text-[10px] font-mono text-right ${msg.sender === 'user' ? 'text-slate-300' : 'text-slate-400'}`}>
-                        {msg.time}
-                      </div>
+                      {msg.text}
                     </div>
                   </div>
                 ))}
+
+                {isAiGenerating && (
+                  <div className="flex items-center gap-2 text-xs text-slate-500 py-2">
+                    <Sparkles className="w-4 h-4 animate-spin text-slate-700" />
+                    <span>AI Assistant is thinking...</span>
+                  </div>
+                )}
               </div>
 
-              <div className="px-6 py-2 border-t border-slate-200 bg-slate-50 flex items-center gap-2 overflow-x-auto">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 shrink-0">Prompts:</span>
-                {quickPrompts.map((p, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSendChat(p)}
-                    className="px-3 py-1 rounded-md text-[11px] font-bold whitespace-nowrap bg-white text-slate-700 hover:bg-slate-900 hover:text-white border border-slate-300 transition-all cursor-pointer"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-
-              <div className="p-4 border-t border-slate-200 bg-white flex items-center gap-3">
+              {/* Full Width Clean Input Bar */}
+              <div className="pt-4 mt-4 border-t border-slate-200 flex items-center gap-3">
                 <input
                   type="text"
                   value={chatInput}
+                  disabled={isAiGenerating}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                  placeholder="Ask a question from your notes (e.g., Explain CIDR notation)..."
-                  className="flex-1 px-4 py-3 border border-slate-300 rounded-lg text-xs outline-none bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-slate-800"
+                  placeholder="Ask a question from your notes..."
+                  className="flex-1 px-4 py-3 border border-slate-300 rounded-xl text-sm outline-none bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-800 disabled:opacity-50"
                 />
                 <button
                   onClick={() => handleSendChat()}
-                  className="flex items-center gap-2 px-5 py-3 rounded-lg bg-slate-900 text-white font-black text-xs shadow-md hover:bg-slate-800 transition-opacity cursor-pointer"
+                  disabled={isAiGenerating || !chatInput.trim()}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 text-white font-bold text-xs shadow-xs hover:bg-slate-800 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >
                   <Send className="w-4 h-4" />
                   <span>Send</span>

@@ -10,6 +10,11 @@ build/
 data/
 uploads/
 
+# Environment Variables & Secrets
+.env
+*.env
+.env.local
+
 # IDE & OS
 .idea/
 .vscode/
