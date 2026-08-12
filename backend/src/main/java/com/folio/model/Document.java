@@ -21,6 +21,8 @@ public class Document {
     private String storagePath;
     private String source;
     private boolean favorite;
+    private boolean trashed;
+    private LocalDateTime trashedAt;
 
     @Column(columnDefinition = "TEXT")
     private String extractedText;
@@ -40,7 +42,7 @@ public class Document {
 
     public Document() {}
 
-    public Document(Long id, String filename, String originalName, String contentType, Long fileSize, String storagePath, String source, boolean favorite, String extractedText, Subject subject, User user, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Document(Long id, String filename, String originalName, String contentType, Long fileSize, String storagePath, String source, boolean favorite, boolean trashed, LocalDateTime trashedAt, String extractedText, Subject subject, User user, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.filename = filename;
         this.originalName = originalName;
@@ -49,6 +51,8 @@ public class Document {
         this.storagePath = storagePath;
         this.source = source;
         this.favorite = favorite;
+        this.trashed = trashed;
+        this.trashedAt = trashedAt;
         this.extractedText = extractedText;
         this.subject = subject;
         this.user = user;
@@ -91,6 +95,12 @@ public class Document {
     public boolean isFavorite() { return favorite; }
     public void setFavorite(boolean favorite) { this.favorite = favorite; }
 
+    public boolean isTrashed() { return trashed; }
+    public void setTrashed(boolean trashed) { this.trashed = trashed; }
+
+    public LocalDateTime getTrashedAt() { return trashedAt; }
+    public void setTrashedAt(LocalDateTime trashedAt) { this.trashedAt = trashedAt; }
+
     public String getExtractedText() { return extractedText; }
     public void setExtractedText(String extractedText) { this.extractedText = extractedText; }
 
@@ -119,6 +129,8 @@ public class Document {
         private String storagePath;
         private String source;
         private boolean favorite;
+        private boolean trashed;
+        private LocalDateTime trashedAt;
         private String extractedText;
         private Subject subject;
         private User user;
@@ -133,6 +145,8 @@ public class Document {
         public DocumentBuilder storagePath(String storagePath) { this.storagePath = storagePath; return this; }
         public DocumentBuilder source(String source) { this.source = source; return this; }
         public DocumentBuilder favorite(boolean favorite) { this.favorite = favorite; return this; }
+        public DocumentBuilder trashed(boolean trashed) { this.trashed = trashed; return this; }
+        public DocumentBuilder trashedAt(LocalDateTime trashedAt) { this.trashedAt = trashedAt; return this; }
         public DocumentBuilder extractedText(String extractedText) { this.extractedText = extractedText; return this; }
         public DocumentBuilder subject(Subject subject) { this.subject = subject; return this; }
         public DocumentBuilder user(User user) { this.user = user; return this; }
@@ -140,7 +154,7 @@ public class Document {
         public DocumentBuilder updatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
 
         public Document build() {
-            return new Document(id, filename, originalName, contentType, fileSize, storagePath, source, favorite, extractedText, subject, user, createdAt, updatedAt);
+            return new Document(id, filename, originalName, contentType, fileSize, storagePath, source, favorite, trashed, trashedAt, extractedText, subject, user, createdAt, updatedAt);
         }
     }
 }

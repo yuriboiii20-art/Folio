@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -85,25 +86,65 @@ public class DocumentService {
     }
 
     public List<Document> getUserDocuments(Long userId) {
-        return documentRepository.findByUserId(userId);
+        return documentRepository.findByUserIdAndTrashedFalse(userId);
     }
 
     public List<Document> getSubjectDocuments(Long subjectId) {
-        return documentRepository.findBySubjectId(subjectId);
+        return documentRepository.findBySubjectIdAndTrashedFalse(subjectId);
     }
 
     public List<Document> searchKeyword(Long userId, String query) {
         return documentRepository.searchKeyword(userId, query);
     }
 
-    public void deleteDocument(Long documentId) {
+    public List<Document> getTrashedDocuments(Long userId) {
+        return documentRepository.findByUserIdAndTrashedTrue(userId);
+    }
+
+    public void softDeleteDocument(Long documentId) {
+        documentRepository.findById(documentId).ifPresent(doc -> {
+            doc.setTrashed(true);
+            doc.setTrashedAt(LocalDateTime.now());
+            documentRepository.save(doc);
+        });
+    }
+
+    public void restoreDocument(Long documentId) {
+        documentRepository.findById(documentId).ifPresent(doc -> {
+            doc.setTrashed(false);
+            doc.setTrashedAt(null);
+            documentRepository.save(doc);
+        });
+    }
+
+    public void permanentlyDeleteDocument(Long documentId) {
         documentRepository.findById(documentId).ifPresent(doc -> {
             try {
                 if (doc.getStoragePath() != null) {
                     Files.deleteIfExists(Paths.get(doc.getStoragePath()));
                 }
             } catch (Exception ignored) {}
+            documentChunkRepository.deleteAll(documentChunkRepository.findByDocumentId(documentId));
             documentRepository.delete(doc);
         });
     }
+
+    public void emptyTrash(Long userId) {
+        List<Document> trashedDocs = documentRepository.findByUserIdAndTrashedTrue(userId);
+        for (Document doc : trashedDocs) {
+            try {
+                if (doc.getStoragePath() != null) {
+                    Files.deleteIfExists(Paths.get(doc.getStoragePath()));
+                }
+            } catch (Exception ignored) {}
+            documentChunkRepository.deleteAll(documentChunkRepository.findByDocumentId(doc.getId()));
+        }
+        documentRepository.deleteAll(trashedDocs);
+    }
+
+    // Legacy method kept for backwards compatibility
+    public void deleteDocument(Long documentId) {
+        softDeleteDocument(documentId);
+    }
 }
+
