@@ -343,6 +343,7 @@ export default function DesktopWebApp() {
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
   const [deletingFileTarget, setDeletingFileTarget] = useState<AcademicFile | null>(null);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<AcademicFile | null>(null);
+  const [isEmptyTrashModalOpen, setIsEmptyTrashModalOpen] = useState(false);
 
   // Folder Opening & In-App Reader State
   const [openedFolderId, setOpenedFolderId] = useState<string | null>(null);
@@ -1051,21 +1052,24 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     showNotification('PERMANENTLY DELETED', 'File removed from database', 'warning');
   };
 
-  const handleEmptyTrash = async () => {
+  const handleEmptyTrash = () => {
     if (trashedFiles.length === 0) return;
-    if (confirm("Are you sure you want to permanently empty all items from Trash? This cannot be undone.")) {
-      setTrashedFiles([]);
+    setIsEmptyTrashModalOpen(true);
+  };
 
-      // Sync empty trash with backend
-      try {
-        await fetch('http://localhost:8080/api/v1/documents/trash/empty', {
-          method: 'DELETE'
-        });
-      } catch (e) {
-        console.log('Backend empty trash sync offline:', e);
-      }
-      showNotification('TRASH EMPTIED', 'All trashed files permanently removed', 'warning');
+  const confirmEmptyTrash = async () => {
+    setIsEmptyTrashModalOpen(false);
+    setTrashedFiles([]);
+
+    // Sync empty trash with backend
+    try {
+      await fetch('http://localhost:8080/api/v1/documents/trash/empty', {
+        method: 'DELETE'
+      });
+    } catch (e) {
+      console.log('Backend empty trash sync offline:', e);
     }
+    showNotification('TRASH EMPTIED', 'All trashed files permanently removed', 'warning');
   };
 
   // Save Edit Profile (Database Synced)
@@ -2979,6 +2983,40 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 className="px-4 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer"
               >
                 Delete Forever
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EMPTY TRASH CONFIRMATION MODAL */}
+      {isEmptyTrashModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-xl p-6 shadow-2xl text-slate-900 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-slate-900 mb-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+              <h3 className="font-bold text-sm">Empty Trash Bin?</h3>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-2">
+              Are you sure you want to permanently delete all <span className="font-bold text-slate-900">{trashedFiles.length} {trashedFiles.length === 1 ? 'item' : 'items'}</span> from Trash?
+            </p>
+            <p className="text-[11px] text-rose-600 font-semibold mb-5">
+              This action cannot be undone. All deleted items will be removed from the database forever.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsEmptyTrashModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmEmptyTrash}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer"
+              >
+                Empty Trash
               </button>
             </div>
           </div>
