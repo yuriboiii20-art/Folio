@@ -13,7 +13,12 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Document> findBySubjectId(Long subjectId);
     List<Document> findByUserIdAndFavoriteTrue(Long userId);
 
-    @Query("SELECT d FROM Document d WHERE d.user.id = :userId AND " +
+    // Soft-delete aware queries
+    List<Document> findByUserIdAndTrashedFalse(Long userId);
+    List<Document> findByUserIdAndTrashedTrue(Long userId);
+    List<Document> findBySubjectIdAndTrashedFalse(Long subjectId);
+
+    @Query("SELECT d FROM Document d WHERE d.user.id = :userId AND d.trashed = false AND " +
            "(LOWER(d.filename) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(d.extractedText) LIKE LOWER(CONCAT('%', :query, '%')))")
     List<Document> searchKeyword(@Param("userId") Long userId, @Param("query") String query);

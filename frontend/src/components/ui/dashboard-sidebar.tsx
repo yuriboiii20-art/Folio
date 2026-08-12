@@ -342,6 +342,7 @@ export default function DesktopWebApp() {
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
   const [deletingFileTarget, setDeletingFileTarget] = useState<AcademicFile | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<AcademicFile | null>(null);
 
   // Folder Opening & In-App Reader State
   const [openedFolderId, setOpenedFolderId] = useState<string | null>(null);
@@ -388,6 +389,95 @@ export default function DesktopWebApp() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Fetch Active & Trashed Documents from Backend API
+  const fetchBackendDocuments = async () => {
+    try {
+      const [activeRes, trashRes] = await Promise.all([
+        fetch('http://localhost:8080/api/v1/documents'),
+        fetch('http://localhost:8080/api/v1/documents/trash')
+      ]);
+
+      if (activeRes.ok) {
+        const activeDocs: any[] = await activeRes.json();
+        if (Array.isArray(activeDocs) && activeDocs.length > 0) {
+          const mappedActive: AcademicFile[] = activeDocs.map(doc => {
+            let folderId = 'f-cn';
+            if (doc.subject) {
+              if (doc.subject.code === 'CS302' || doc.subject.name?.toLowerCase().includes('database')) folderId = 'f-dbms';
+              else if (doc.subject.code === 'CS401' || doc.subject.name?.toLowerCase().includes('machine')) folderId = 'f-ml';
+              else if (doc.subject.id) folderId = `f-${doc.subject.id}`;
+            }
+            const sizeMb = doc.fileSize ? `${(doc.fileSize / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
+            const isPdf = doc.filename ? doc.filename.toLowerCase().endsWith('.pdf') : true;
+
+            return {
+              id: `doc-${doc.id}`,
+              title: doc.filename || doc.originalName || 'Untitled Document',
+              folderId: folderId,
+              source: doc.source || 'Direct Upload',
+              size: sizeMb,
+              sizeBytes: doc.fileSize || 1048576,
+              date: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recently',
+              fileType: isPdf ? 'pdf' : 'text',
+              fileUrl: doc.storagePath ? `http://localhost:8080/api/v1/documents/${doc.id}/file` : undefined,
+              contentSnippet: doc.extractedText || `Document: ${doc.filename}`,
+              isStarred: doc.favorite || false
+            };
+          });
+
+          setFiles(prev => {
+            const backendIds = new Set(mappedActive.map(d => d.id));
+            const trashedIds = new Set(trashedFiles.map(d => d.id));
+            const remainingLocal = prev.filter(p => !backendIds.has(p.id) && !trashedIds.has(p.id));
+            return [...mappedActive, ...remainingLocal];
+          });
+        }
+      }
+
+      if (trashRes.ok) {
+        const trashDocs: any[] = await trashRes.json();
+        if (Array.isArray(trashDocs) && trashDocs.length > 0) {
+          const mappedTrashed: AcademicFile[] = trashDocs.map(doc => {
+            let folderId = 'f-cn';
+            if (doc.subject) {
+              if (doc.subject.code === 'CS302' || doc.subject.name?.toLowerCase().includes('database')) folderId = 'f-dbms';
+              else if (doc.subject.code === 'CS401' || doc.subject.name?.toLowerCase().includes('machine')) folderId = 'f-ml';
+              else if (doc.subject.id) folderId = `f-${doc.subject.id}`;
+            }
+            const sizeMb = doc.fileSize ? `${(doc.fileSize / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
+            const isPdf = doc.filename ? doc.filename.toLowerCase().endsWith('.pdf') : true;
+
+            return {
+              id: `doc-${doc.id}`,
+              title: doc.filename || doc.originalName || 'Untitled Document',
+              folderId: folderId,
+              source: doc.source || 'Direct Upload',
+              size: sizeMb,
+              sizeBytes: doc.fileSize || 1048576,
+              date: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recently',
+              fileType: isPdf ? 'pdf' : 'text',
+              fileUrl: doc.storagePath ? `http://localhost:8080/api/v1/documents/${doc.id}/file` : undefined,
+              contentSnippet: doc.extractedText || `Document: ${doc.filename}`,
+              isStarred: doc.favorite || false
+            };
+          });
+
+          setTrashedFiles(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newFromBackend = mappedTrashed.filter(m => !existingIds.has(m.id));
+            return [...prev, ...newFromBackend];
+          });
+        }
+      }
+    } catch (e) {
+      console.log('Backend sync offline:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchBackendDocuments();
+  }, [activeTab]);
 
 
 
@@ -853,10 +943,19 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         formData.append('source', selectedSource);
         formData.append('subjectId', dbSubjectId);
 
-        await fetch('http://localhost:8080/api/v1/documents/upload', {
+        const uploadRes = await fetch('http://localhost:8080/api/v1/documents/upload', {
           method: 'POST',
           body: formData
         });
+
+        if (uploadRes.ok) {
+          const savedDoc = await uploadRes.json();
+          if (savedDoc && savedDoc.id) {
+            const backendFileId = `doc-${savedDoc.id}`;
+            newFile.id = backendFileId;
+            setFiles(prev => prev.map(f => f.title === newFile.title ? { ...f, id: backendFileId } : f));
+          }
+        }
       } catch (e) {
         console.log('Backend upload API sync:', e);
       }
@@ -881,7 +980,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  const performDeleteFile = (fileId: string) => {
+  const performDeleteFile = async (fileId: string) => {
     const targetFile = files.find(f => f.id === fileId);
     if (targetFile) {
       setFolders(prev => prev.map(f => {
@@ -890,13 +989,29 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         }
         return f;
       }));
-      setTrashedFiles(prev => [targetFile, ...prev]);
+      setTrashedFiles(prev => [targetFile, ...prev.filter(t => t.id !== targetFile.id)]);
       setFiles(prev => prev.filter(f => f.id !== fileId));
+
+      // Sync soft-delete with backend
+      const numericId = fileId.replace(/[^0-9]/g, '');
+      if (numericId) {
+        try {
+          await fetch(`http://localhost:8080/api/v1/documents/${numericId}`, {
+            method: 'DELETE'
+          });
+        } catch (e) {
+          console.log('Backend trash sync offline:', e);
+        }
+      }
     }
     setDeletingFileTarget(null);
+    if (readingFile?.id === fileId) {
+      setReadingFile(null);
+    }
+    showNotification('MOVED TO TRASH', targetFile?.title || 'File moved to trash', 'info');
   };
 
-  const handleRestoreFile = (doc: AcademicFile) => {
+  const handleRestoreFile = async (doc: AcademicFile) => {
     setTrashedFiles(prev => prev.filter(f => f.id !== doc.id));
     setFiles(prev => [doc, ...prev]);
     setFolders(prev => prev.map(f => {
@@ -905,26 +1020,51 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       }
       return f;
     }));
+
+    // Sync restore with backend
+    const numericId = doc.id.replace(/[^0-9]/g, '');
+    if (numericId) {
+      try {
+        await fetch(`http://localhost:8080/api/v1/documents/${numericId}/restore`, {
+          method: 'PUT'
+        });
+      } catch (e) {
+        console.log('Backend restore sync offline:', e);
+      }
+    }
+    showNotification('FILE RESTORED', doc.title, 'success');
   };
 
   const handlePermanentDeleteFile = async (fileId: string) => {
     setTrashedFiles(prev => prev.filter(f => f.id !== fileId));
+    setPermanentDeleteTarget(null);
     const numericId = fileId.replace(/[^0-9]/g, '');
     if (numericId) {
       try {
-        await fetch(`http://localhost:8080/api/v1/documents/${numericId}`, {
+        await fetch(`http://localhost:8080/api/v1/documents/${numericId}/permanent`, {
           method: 'DELETE'
         });
       } catch (e) {
-        console.log('Database delete sync offline:', e);
+        console.log('Backend permanent delete sync offline:', e);
       }
     }
+    showNotification('PERMANENTLY DELETED', 'File removed from database', 'warning');
   };
 
-  const handleEmptyTrash = () => {
+  const handleEmptyTrash = async () => {
     if (trashedFiles.length === 0) return;
-    if (confirm("Are you sure you want to permanently empty all items from Trash?")) {
+    if (confirm("Are you sure you want to permanently empty all items from Trash? This cannot be undone.")) {
       setTrashedFiles([]);
+
+      // Sync empty trash with backend
+      try {
+        await fetch('http://localhost:8080/api/v1/documents/trash/empty', {
+          method: 'DELETE'
+        });
+      } catch (e) {
+        console.log('Backend empty trash sync offline:', e);
+      }
+      showNotification('TRASH EMPTIED', 'All trashed files permanently removed', 'warning');
     }
   };
 
@@ -2590,7 +2730,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                                 <span>Restore</span>
                               </button>
                               <button
-                                onClick={() => handlePermanentDeleteFile(doc.id)}
+                                onClick={() => setPermanentDeleteTarget(doc)}
                                 className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
                                 title="Delete permanently"
                               >
@@ -2792,22 +2932,53 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           <div className="w-full max-w-sm bg-white border border-slate-200 rounded-xl p-6 shadow-2xl text-slate-900 animate-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-slate-900 mb-3">
               <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />
-              <h3 className="font-bold text-sm">Delete Document?</h3>
+              <h3 className="font-bold text-sm">Move to Trash?</h3>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed mb-5">
-              Are you sure you want to delete <span className="font-bold text-slate-900">{deletingFileTarget.title}</span>?
+              Are you sure you want to move <span className="font-bold text-slate-900">{deletingFileTarget.title}</span> to Trash? You can restore it later from the Trash Bin.
             </p>
 
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeletingFileTarget(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100">
+              <button onClick={() => setDeletingFileTarget(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
                 Cancel
               </button>
               <button
                 onClick={() => performDeleteFile(deletingFileTarget.id)}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer"
               >
-                Delete File
+                Move to Trash
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PERMANENT DELETE CONFIRMATION MODAL */}
+      {permanentDeleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-xl p-6 shadow-2xl text-slate-900 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-slate-900 mb-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+              <h3 className="font-bold text-sm">Permanently Delete?</h3>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-2">
+              Are you sure you want to permanently delete <span className="font-bold text-slate-900">{permanentDeleteTarget.title}</span>?
+            </p>
+            <p className="text-[11px] text-rose-600 font-semibold mb-5">
+              This action cannot be undone. The file will be removed from the database forever.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPermanentDeleteTarget(null)} className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
+                Cancel
+              </button>
+              <button
+                onClick={() => handlePermanentDeleteFile(permanentDeleteTarget.id)}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 shadow-sm cursor-pointer"
+              >
+                Delete Forever
               </button>
             </div>
           </div>
@@ -2861,6 +3032,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 >
                   <Download className="w-4 h-4" />
                   <span>Download</span>
+                </button>
+
+                <button
+                  onClick={() => handleDeleteFile(readingFile)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+                  title="Move document to trash"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Trash</span>
                 </button>
 
                 <button

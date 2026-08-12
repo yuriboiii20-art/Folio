@@ -88,8 +88,33 @@ public class ApiController {
 
     @DeleteMapping("/documents/{id}")
     public ResponseEntity<?> deleteDocument(@PathVariable Long id) {
-        documentService.deleteDocument(id);
-        return ResponseEntity.ok(Map.of("message", "Document deleted successfully from database."));
+        documentService.softDeleteDocument(id);
+        return ResponseEntity.ok(Map.of("message", "Document moved to trash."));
+    }
+
+    @GetMapping("/documents/trash")
+    public ResponseEntity<List<Document>> getTrashedDocuments() {
+        User user = getOrCreateDevUser();
+        return ResponseEntity.ok(documentService.getTrashedDocuments(user.getId()));
+    }
+
+    @PutMapping("/documents/{id}/restore")
+    public ResponseEntity<?> restoreDocument(@PathVariable Long id) {
+        documentService.restoreDocument(id);
+        return ResponseEntity.ok(Map.of("message", "Document restored from trash."));
+    }
+
+    @DeleteMapping("/documents/{id}/permanent")
+    public ResponseEntity<?> permanentlyDeleteDocument(@PathVariable Long id) {
+        documentService.permanentlyDeleteDocument(id);
+        return ResponseEntity.ok(Map.of("message", "Document permanently deleted."));
+    }
+
+    @DeleteMapping("/documents/trash/empty")
+    public ResponseEntity<?> emptyTrash() {
+        User user = getOrCreateDevUser();
+        documentService.emptyTrash(user.getId());
+        return ResponseEntity.ok(Map.of("message", "Trash emptied successfully."));
     }
 
     @DeleteMapping("/subjects/{id}")
