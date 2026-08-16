@@ -122,7 +122,21 @@ export interface OmniSearchResult {
   action: () => void;
 }
 
-export default function DesktopWebApp() {
+export interface DesktopWebAppProps {
+  currentUser?: {
+    name: string;
+    role: string;
+    usn: string;
+    sem: string;
+    branch: string;
+    email: string;
+    studyStreak: number;
+    avatarUrl?: string;
+  };
+  onLogout?: () => void;
+}
+
+export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppProps = {}) {
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const savedTab = localStorage.getItem('folio_active_tab');
@@ -483,16 +497,32 @@ export default function DesktopWebApp() {
 
 
   // Student Profile State
-  const [studentProfile, setStudentProfile] = useState({
-    name: 'John Doe',
-    role: 'Computer Science Scholar',
-    usn: '1FA21CS042',
-    sem: '6th Semester',
-    branch: 'Computer Science & Engineering',
-    email: 'john.doe@folio.edu',
-    studyStreak: 12,
-    avatarUrl: ''
+  const [studentProfile, setStudentProfile] = useState(() => {
+    return (
+      currentUser || {
+        name: 'Alex Johnson',
+        role: 'Computer Science Scholar',
+        usn: '1FA21CS042',
+        sem: '6th Semester',
+        branch: 'Computer Science & Engineering',
+        email: 'alex.johnson@folio.edu',
+        studyStreak: 12,
+        avatarUrl: ''
+      }
+    );
   });
+
+  // Sync profile when currentUser prop changes
+  useEffect(() => {
+    if (currentUser) {
+      setStudentProfile(currentUser);
+      setEditName(currentUser.name);
+      setEditEmail(currentUser.email);
+      setEditUsn(currentUser.usn);
+      setEditRole(currentUser.role);
+      setEditBranch(currentUser.branch);
+    }
+  }, [currentUser]);
 
   // Edit Profile Form State
   const [editName, setEditName] = useState(studentProfile.name);
@@ -1364,7 +1394,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           </div>
 
           <button
-            onClick={() => showNotification("LOGGED OUT", "Session terminated safely", "info")}
+            onClick={() => {
+              if (onLogout) {
+                onLogout();
+              } else {
+                showNotification("LOGGED OUT", "Session terminated safely", "info");
+              }
+            }}
             onMouseEnter={() => setHoveredStatusLink('#logout')}
             onMouseLeave={() => setHoveredStatusLink(null)}
             title={isSidebarCollapsed ? 'Logout' : undefined}
@@ -2920,6 +2956,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 onClick={() => {
                   showNotification("ACCOUNT DELETED", "All student data has been erased", "warning");
                   setIsDeleteAccountModalOpen(false);
+                  if (onLogout) {
+                    setTimeout(() => onLogout(), 800);
+                  }
                 }}
                 className="px-5 py-2 rounded-lg text-xs font-black bg-rose-600 text-white hover:bg-rose-700 shadow-md"
               >
