@@ -1,38 +1,24 @@
 'use client';
-import React, { useState, ChangeEvent, FormEvent } from 'react';
+import React, { useState, ChangeEvent, FormEvent, ReactNode } from 'react';
 import {
   FileText,
-  ScrollText,
-  FolderClosed,
-  BookOpen,
-  FileCheck,
-  BrainCircuit,
-  Bookmark,
-  FileCode2,
-  GraduationCap,
-  Sparkles,
   Lock,
   Mail,
-  User,
-  Hash,
   ArrowRight,
   Eye,
   EyeOff,
   CheckCircle2,
   AlertCircle,
-  Bot,
-  BarChart2,
+  GraduationCap,
+  Sparkles,
+  BookOpen,
+  FolderClosed,
   ShieldCheck,
-  Zap
+  Zap,
+  Layers,
+  Database
 } from 'lucide-react';
-import {
-  Ripple,
-  TechOrbitDisplay,
-  BoxReveal,
-  Input,
-  Label,
-  BottomGradient,
-} from './modern-animated-sign-in';
+import { useAuth } from '../../lib/authContext';
 
 export interface UserSessionProfile {
   name: string;
@@ -47,93 +33,47 @@ export interface UserSessionProfile {
 }
 
 interface LoginPageProps {
-  onLogin: (profile: UserSessionProfile) => void;
+  onLogin?: (profile: UserSessionProfile) => void;
 }
 
-// Academic & Study Resource Orbiting Icons (Papers, Documents, Folders, Notes, AI Intelligence)
-const iconsArray = [
-  {
-    component: () => (
-      <div className="flex items-center justify-center size-9 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-400 shadow-lg shadow-rose-500/15 backdrop-blur-md hover:scale-110 transition-transform">
-        <FileText className="size-4.5" />
+// Glassmorphic Input Component
+const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <div className="relative group/input">
+        <input
+          type={type}
+          className={`flex h-10 w-full border border-white/10 bg-slate-800/60 backdrop-blur-md text-white shadow-input rounded-xl px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 transition duration-200 ${className || ''}`}
+          ref={ref}
+          {...props}
+        />
       </div>
-    ),
-    className: 'size-9 border-none bg-transparent',
-    duration: 24,
-    delay: 0,
-    radius: 95,
-    path: false,
-    reverse: false,
-  },
-  {
-    component: () => (
-      <div className="flex items-center justify-center size-9 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-400 shadow-lg shadow-amber-500/15 backdrop-blur-md hover:scale-110 transition-transform">
-        <FolderClosed className="size-4.5" />
-      </div>
-    ),
-    className: 'size-9 border-none bg-transparent',
-    duration: 24,
-    delay: 12,
-    radius: 95,
-    path: false,
-    reverse: false,
-  },
-  {
-    component: () => (
-      <div className="flex items-center justify-center size-10 rounded-xl bg-sky-500/15 border border-sky-500/40 text-sky-400 shadow-lg shadow-sky-500/15 backdrop-blur-md hover:scale-110 transition-transform">
-        <ScrollText className="size-5" />
-      </div>
-    ),
-    className: 'size-10 border-none bg-transparent',
-    duration: 28,
-    delay: 4,
-    radius: 150,
-    path: false,
-    reverse: true,
-  },
-  {
-    component: () => (
-      <div className="flex items-center justify-center size-10 rounded-xl bg-indigo-500/15 border border-indigo-500/40 text-indigo-400 shadow-lg shadow-indigo-500/15 backdrop-blur-md hover:scale-110 transition-transform">
-        <BookOpen className="size-5" />
-      </div>
-    ),
-    className: 'size-10 border-none bg-transparent',
-    duration: 28,
-    delay: 18,
-    radius: 150,
-    path: false,
-    reverse: true,
-  },
-  {
-    component: () => (
-      <div className="flex items-center justify-center size-11 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shadow-lg shadow-emerald-500/15 backdrop-blur-md hover:scale-110 transition-transform">
-        <FileCheck className="size-5.5" />
-      </div>
-    ),
-    className: 'size-11 border-none bg-transparent',
-    radius: 205,
-    duration: 32,
-    delay: 0,
-    path: false,
-    reverse: false,
-  },
-  {
-    component: () => (
-      <div className="flex items-center justify-center size-11 rounded-xl bg-purple-500/15 border border-purple-500/40 text-purple-400 shadow-lg shadow-purple-500/15 backdrop-blur-md hover:scale-110 transition-transform">
-        <Sparkles className="size-5.5" />
-      </div>
-    ),
-    className: 'size-11 border-none bg-transparent',
-    radius: 205,
-    duration: 32,
-    delay: 16,
-    path: false,
-    reverse: false,
-  },
-];
+    );
+  }
+);
+Input.displayName = "Input";
+
+// Glassmorphic Label Component
+const Label = ({ children, className, htmlFor }: { children: ReactNode; className?: string; htmlFor?: string }) => (
+  <label htmlFor={htmlFor} className={`text-xs font-semibold text-slate-300 select-none ${className || ''}`}>
+    {children}
+  </label>
+);
+
+// Bottom Gradient Accent Component
+const BottomGradient = () => {
+  return (
+    <>
+      <span className="group-hover/btn:opacity-100 block transition duration-500 opacity-0 absolute h-px w-full -bottom-px inset-x-0 bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
+      <span className="group-hover/btn:opacity-100 blur-sm block transition duration-500 opacity-0 absolute h-px w-1/2 mx-auto -bottom-px inset-x-0 bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
+    </>
+  );
+};
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const { signIn, signUp, signInWithGoogle, resetPasswordForEmail, updatePassword } = useAuth();
+
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -142,7 +82,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [forgotEmail, setForgotEmail] = useState('');
 
   // Sign In Form State
-  const [signInIdentifier, setSignInIdentifier] = useState('');
+  const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
 
   // Sign Up Form State
@@ -158,70 +98,37 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!signInIdentifier.trim() || !signInPassword) {
-      setErrorMessage('Please enter both your email/identifier and password.');
+    if (!signInEmail.trim() || !signInPassword) {
+      setErrorMessage('Please enter both your email address and password.');
       return;
     }
 
     setIsLoading(true);
 
-    try {
-      // Attempt backend auth against Supabase
-      const email = signInIdentifier.includes('@')
-        ? signInIdentifier.trim()
-        : `${signInIdentifier.trim()}@folio.edu`;
+    const email = signInEmail.includes('@')
+      ? signInEmail.trim()
+      : `${signInEmail.trim()}@folio.edu`;
 
-      const response = await fetch('http://localhost:8080/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: signInPassword })
-      });
+    const { error } = await signIn(email, signInPassword);
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.token) {
-          localStorage.setItem('folio_jwt_token', data.token);
-        }
-        setIsLoading(false);
-        onLogin({
-          name: data.fullName || email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          role: data.role === 'ADMIN' ? 'System Administrator' : 'Academic Scholar',
-          usn: '1FA23CS' + (data.userId ? String(data.userId).padStart(3, '0') : '042'),
-          sem: '6th Semester',
-          branch: 'Computer Science & Engineering',
-          email: data.email || email,
-          studyStreak: 12,
-          avatarUrl: '',
-          token: data.token
-        });
-        return;
-      }
-    } catch (err) {
-      // Backend offline or direct access fallback
+    setIsLoading(false);
+
+    if (error) {
+      setErrorMessage(error.message || 'Invalid credentials. Please try again.');
+      return;
     }
 
-    // Fallback authentication for offline or direct access
-    setTimeout(() => {
-      setIsLoading(false);
-      const email = signInIdentifier.includes('@')
-        ? signInIdentifier.trim()
-        : `${signInIdentifier.trim()}@folio.edu`;
-      const usernamePart = email.split('@')[0];
-      const formattedName = usernamePart
-        .replace(/[._]/g, ' ')
-        .replace(/\b\w/g, (l) => l.toUpperCase());
-
+    if (onLogin) {
       onLogin({
-        name: formattedName || 'Academic Scholar',
+        name: email.split('@')[0],
         role: 'Academic Scholar',
-        usn: '1FA23CS' + Math.floor(100 + Math.random() * 900),
+        usn: '1FA23CS042',
         sem: '6th Semester',
         branch: 'Computer Science & Engineering',
         email: email,
-        studyStreak: 12,
-        avatarUrl: ''
+        studyStreak: 12
       });
-    }, 400);
+    }
   };
 
   const handleSignUpSubmit = async (e: FormEvent) => {
@@ -240,192 +147,195 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     }
 
     if (signUpPassword.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
+      setErrorMessage('Password must be at least 6 characters long.');
       return;
     }
 
     setIsLoading(true);
 
-    try {
-      const response = await fetch('http://localhost:8080/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: signUpName.trim(),
-          email: signUpEmail.trim(),
-          password: signUpPassword
-        })
-      });
+    const { error } = await signUp(
+      signUpEmail.trim(),
+      signUpPassword,
+      signUpName.trim(),
+      signUpUsn.trim(),
+      signUpBranch
+    );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.token) {
-          localStorage.setItem('folio_jwt_token', data.token);
-        }
-        setIsLoading(false);
-        onLogin({
-          name: signUpName.trim(),
-          role: 'Registered Scholar',
-          usn: signUpUsn.trim() || ('1FA24CS' + Math.floor(100 + Math.random() * 900)),
-          sem: '1st Semester',
-          branch: signUpBranch,
-          email: signUpEmail.trim(),
-          studyStreak: 1,
-          avatarUrl: '',
-          token: data.token
-        });
-        return;
-      } else {
-        const errData = await response.json().catch(() => null);
-        if (errData?.error) {
-          setIsLoading(false);
-          setErrorMessage(errData.error);
-          return;
-        }
-      }
-    } catch (err) {
-      // Backend offline fallback
+    setIsLoading(false);
+
+    if (error) {
+      setErrorMessage(error.message || 'Registration failed. Please try again.');
+      return;
     }
 
-    // Graceful fallback login
-    setTimeout(() => {
-      setIsLoading(false);
+    setSuccessMessage('Account created successfully! Redirecting...');
+    if (onLogin) {
       onLogin({
         name: signUpName.trim(),
         role: 'Registered Scholar',
-        usn: signUpUsn.trim() || ('1FA24CS' + Math.floor(100 + Math.random() * 900)),
+        usn: signUpUsn.trim() || '1FA24CS042',
         sem: '1st Semester',
         branch: signUpBranch,
         email: signUpEmail.trim(),
-        studyStreak: 1,
-        avatarUrl: ''
+        studyStreak: 1
       });
-    }, 400);
+    }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setErrorMessage('');
+    const { error } = await signInWithGoogle();
+    setIsLoading(false);
+
+    if (error) {
+      setErrorMessage(error.message || 'Google sign in unavailable.');
+      return;
+    }
+
+    if (onLogin) {
       onLogin({
-        name: 'Alex Johnson',
-        role: 'Verified Google Scholar',
-        usn: '1FA21CS042',
+        name: 'Scholar Student',
+        role: 'Academic Scholar',
+        usn: '1FA23CS099',
         sem: '6th Semester',
         branch: 'Computer Science & Engineering',
-        email: 'alex.johnson@folio.edu',
-        studyStreak: 14,
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+        email: 'scholar.google@folio.edu',
+        studyStreak: 15
       });
-    }, 400);
+    }
+  };
+
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) {
+      setErrorMessage('Please enter your university email address.');
+      return;
+    }
+
+    setIsLoading(true);
+    const { error } = await resetPasswordForEmail(forgotEmail.trim());
+    setIsLoading(false);
+
+    if (error) {
+      setErrorMessage(error.message || 'Unable to send recovery email.');
+    } else {
+      setSuccessMessage(`Password recovery instructions dispatched to ${forgotEmail.trim()}`);
+      setIsForgotModalOpen(false);
+      setForgotEmail('');
+    }
   };
 
   return (
-    <div className="h-screen max-h-screen w-full bg-slate-950 text-slate-100 flex flex-col lg:flex-row relative overflow-hidden font-sans select-none">
-      {/* Background ambient lighting */}
-      <div className="absolute top-[-20%] left-[-10%] w-[450px] h-[450px] rounded-full bg-blue-600/10 blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[150px] pointer-events-none" />
+    <div className="h-screen max-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden select-none relative">
+      {/* Background Animated Glows */}
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-purple-600/15 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* LEFT PANEL: Orbiting Tech Animation & Brand Visuals (Desktop only) */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-6 lg:p-8 xl:p-10 border-r border-slate-800/60 bg-gradient-to-br from-slate-950 via-slate-900/50 to-slate-950 overflow-hidden h-full">
-        <Ripple mainCircleSize={100} mainCircleOpacity={0.15} />
-
-        {/* Top Branding */}
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
-            <GraduationCap className="size-5 text-white" />
+      {/* Main Glassmorphic Container */}
+      <div className="w-full max-w-5xl h-full max-h-[640px] grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 bg-slate-900/40 border border-white/15 rounded-3xl p-4 sm:p-6 backdrop-blur-2xl shadow-2xl shadow-blue-950/40 overflow-hidden relative z-10 items-center">
+        
+        {/* ======================= LEFT HERO SECTION (Clean Glassmorphism, Zero Overlap) ======================= */}
+        <div className="hidden lg:flex flex-col justify-between h-full bg-gradient-to-br from-blue-950/30 via-slate-900/30 to-indigo-950/30 border border-white/10 rounded-2xl p-6 relative overflow-hidden backdrop-blur-xl">
+          
+          {/* Top Brand Header */}
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-400/25 text-blue-300 text-xs font-semibold backdrop-blur-md">
+              <Sparkles className="size-3.5 text-blue-400" />
+              <span>FOLIO • Academic OS</span>
+            </div>
+            
+            <div className="flex items-center gap-3 pt-1">
+              <div className="size-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-white/20">
+                <GraduationCap className="size-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-white tracking-tight leading-tight">FOLIO</h1>
+                <p className="text-xs font-medium text-slate-300">Smart File Management for Students</p>
+              </div>
+            </div>
           </div>
-          <div>
+
+          {/* Clean Distinct Feature Cards (Zero visual collision) */}
+          <div className="space-y-3 my-auto">
+            {/* Feature 1 */}
+            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 backdrop-blur-md flex items-start gap-3.5 hover:bg-slate-800/60 transition-all">
+              <div className="size-8 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
+                <FolderClosed className="size-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-white">Subject Folders & Notes</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Organize lecture PDFs, assignments, and study materials into structured subject folders.
+                </p>
+              </div>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 backdrop-blur-md flex items-start gap-3.5 hover:bg-slate-800/60 transition-all">
+              <div className="size-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5">
+                <ShieldCheck className="size-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-white">Supabase Row Level Security</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  100% strict user data isolation. Only you can view, upload, and access your private files.
+                </p>
+              </div>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 backdrop-blur-md flex items-start gap-3.5 hover:bg-slate-800/60 transition-all">
+              <div className="size-8 rounded-lg bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-400 shrink-0 mt-0.5">
+                <Zap className="size-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-white">AI Study Studio & Search</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Instant full-text indexing, quick previews, and intelligent academic query assistants.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Status Tag */}
+          <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+            <div className="flex items-center gap-1.5">
+              <div className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Cloud Database Active</span>
+            </div>
+            <span className="text-blue-400 font-medium">PostgreSQL 15 Protected</span>
+          </div>
+        </div>
+
+        {/* ======================= RIGHT AUTH FORM SECTION (Glassmorphism + Google Login) ======================= */}
+        <div className="flex flex-col justify-center h-full px-2 sm:px-6 py-2 overflow-y-auto">
+          
+          {/* Top Mobile Brand Header */}
+          <div className="lg:hidden flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-400">
-                FOLIO
-              </span>
-              <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                v2.4
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400">Academic Intelligence & Workspace Portal</p>
-          </div>
-        </div>
-
-        {/* Center: Tech Orbit Animation */}
-        <div className="relative z-10 my-auto h-[260px] lg:h-[300px] xl:h-[340px] flex items-center justify-center">
-          <TechOrbitDisplay iconsArray={iconsArray} text="FOLIO" />
-        </div>
-
-        {/* Bottom Feature Badges */}
-        <div className="relative z-10 space-y-3">
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
-              <div className="flex items-center gap-1.5 text-blue-400 mb-1">
-                <Bot className="size-3.5" />
-                <span className="text-[11px] font-semibold">Gemini AI</span>
+              <div className="size-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white">
+                <GraduationCap className="size-4.5" />
               </div>
-              <p className="text-[10px] text-slate-400 leading-snug">Instant tutoring & smart study notes</p>
+              <span className="font-bold text-base text-white">FOLIO</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
-              <div className="flex items-center gap-1.5 text-indigo-400 mb-1">
-                <BarChart2 className="size-3.5" />
-                <span className="text-[11px] font-semibold">Analytics</span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-snug">Real-time study streak & progress</p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
-              <div className="flex items-center gap-1.5 text-emerald-400 mb-1">
-                <FolderClosed className="size-3.5" />
-                <span className="text-[11px] font-semibold">Cloud Sync</span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-snug">Supabase PostgreSQL persistence</p>
-            </div>
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1.5 border-t border-slate-800/40">
-            <span>&copy; {new Date().getFullYear()} FOLIO Academic OS</span>
-            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-              <span className="size-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-              Supabase DB Active
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL: Auth Container & Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center px-4 sm:px-8 md:px-12 py-6 z-10 h-full overflow-y-auto lg:overflow-hidden">
-        <div className="w-full max-w-[400px] my-auto space-y-4 sm:space-y-4.5">
-          {/* Mobile Header Brand */}
-          <div className="lg:hidden flex items-center justify-center gap-2.5 mb-1">
-            <div className="size-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <GraduationCap className="size-4.5 text-white" />
-            </div>
-            <span className="font-bold text-xl tracking-tight text-white">FOLIO</span>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              v2.4
+            <span className="text-[10px] text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+              Academic Cloud
             </span>
           </div>
 
-          {/* Title and Subtitle */}
-          <div className="text-center sm:text-left space-y-1">
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              {authMode === 'signin' ? 'Welcome Back' : 'Create Scholar Account'}
-            </h2>
-            <p className="text-xs text-slate-400">
-              {authMode === 'signin'
-                ? 'Sign in to access your curriculum, analytics, and AI studio.'
-                : 'Join Folio to streamline syllabus tracking and academic notes.'}
-            </p>
-          </div>
-
-          {/* Mode Switcher Tabs */}
-          <div className="flex rounded-lg bg-slate-900/90 p-1 border border-slate-800">
+          {/* Tabs for Sign In vs Create Account */}
+          <div className="flex p-1 bg-slate-800/60 border border-white/10 rounded-xl mb-3 backdrop-blur-md">
             <button
               type="button"
               onClick={() => {
-                setAuthMode('signin');
+                setMode('signin');
                 setErrorMessage('');
                 setSuccessMessage('');
               }}
-              className={`flex-1 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all cursor-pointer ${
-                authMode === 'signin'
-                  ? 'bg-blue-600 text-white shadow-sm'
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                mode === 'signin'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -434,13 +344,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <button
               type="button"
               onClick={() => {
-                setAuthMode('signup');
+                setMode('signup');
                 setErrorMessage('');
                 setSuccessMessage('');
               }}
-              className={`flex-1 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all cursor-pointer ${
-                authMode === 'signup'
-                  ? 'bg-blue-600 text-white shadow-sm'
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                mode === 'signup'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -448,61 +358,61 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </button>
           </div>
 
-          {/* Google Sign In Option */}
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={isLoading}
-            className="g-button group/btn relative w-full h-10 bg-slate-900/80 hover:bg-slate-800/90 border border-slate-700/60 rounded-lg flex items-center justify-center gap-2.5 text-xs sm:text-sm font-medium text-slate-200 transition-all hover:border-slate-600 cursor-pointer shadow-sm disabled:opacity-50"
-          >
-            <img
-              src="https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-512.png"
-              alt="Google"
-              className="size-4.5 object-contain"
-            />
-            <span>Continue with Google</span>
-            <BottomGradient />
-          </button>
+          {/* Prominent Login Through Google Button */}
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+              className="w-full h-10 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-white/15 hover:border-white/30 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-[0.99] backdrop-blur-md"
+            >
+              <svg className="size-4 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Continue with Google</span>
+            </button>
 
-          {/* Divider */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex-1 h-px bg-slate-800" />
-            <span className="text-[11px] uppercase text-slate-500 tracking-wider font-medium">Or with credentials</span>
-            <div className="flex-1 h-px bg-slate-800" />
+            {/* Divider */}
+            <div className="flex items-center gap-2.5 my-2.5">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">or continue with email</span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
           </div>
 
-          {/* Error Message Display */}
+          {/* Feedback Alerts */}
           {errorMessage && (
-            <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-xs text-red-400 animate-in fade-in">
-              <AlertCircle className="size-3.5 shrink-0" />
+            <div className="mb-2.5 p-2 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center gap-2 text-xs text-red-300 animate-in fade-in">
+              <AlertCircle className="size-3.5 shrink-0 text-red-400" />
               <span>{errorMessage}</span>
             </div>
           )}
-
-          {/* Success Message Display */}
           {successMessage && (
-            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-400 animate-in fade-in">
-              <CheckCircle2 className="size-3.5 shrink-0" />
+            <div className="mb-2.5 p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 animate-in fade-in">
+              <CheckCircle2 className="size-3.5 shrink-0 text-emerald-400" />
               <span>{successMessage}</span>
             </div>
           )}
 
           {/* SIGN IN FORM */}
-          {authMode === 'signin' ? (
+          {mode === 'signin' ? (
             <form onSubmit={handleSignInSubmit} className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="signin-email" className="text-xs">University Email or USN</Label>
+                <Label htmlFor="signin-email" className="text-xs">University Email / Username</Label>
                 <div className="relative">
                   <Input
                     id="signin-email"
                     type="text"
-                    placeholder="e.g. alex.johnson@folio.edu or 1FA21CS042"
-                    value={signInIdentifier}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSignInIdentifier(e.target.value)}
+                    placeholder="student@institution.edu"
+                    value={signInEmail}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSignInEmail(e.target.value)}
                     required
-                    className="h-9.5 text-xs sm:text-sm"
+                    className="pl-9 h-9.5 text-xs sm:text-sm"
                   />
-                  <Mail className="absolute right-3 top-2.5 size-3.5 text-slate-500 pointer-events-none" />
+                  <Mail className="absolute left-3 top-2.5 size-4 text-slate-400 pointer-events-none" />
                 </div>
               </div>
 
@@ -512,27 +422,28 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   <button
                     type="button"
                     onClick={() => setIsForgotModalOpen(true)}
-                    className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
+                    className="text-[11px] text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
                   >
-                    Forgot Password?
+                    Forgot password?
                   </button>
                 </div>
                 <div className="relative">
                   <Input
                     id="signin-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••••••"
+                    placeholder="••••••••"
                     value={signInPassword}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setSignInPassword(e.target.value)}
                     required
-                    className="h-9.5 text-xs sm:text-sm"
+                    className="pl-9 pr-9 h-9.5 text-xs sm:text-sm"
                   />
+                  <Lock className="absolute left-3 top-2.5 size-4 text-slate-400 pointer-events-none" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition-colors"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
                 </div>
               </div>
@@ -540,7 +451,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group/btn relative w-full h-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 mt-1"
+                className="group/btn relative w-full h-9.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer disabled:opacity-50 mt-1 active:scale-[0.98]"
               >
                 {isLoading ? (
                   <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -601,7 +512,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   id="signup-branch"
                   value={signUpBranch}
                   onChange={(e) => setSignUpBranch(e.target.value)}
-                  className="w-full h-9 px-2.5 rounded-lg bg-zinc-800/90 text-xs text-slate-100 border border-slate-700/80 focus:ring-1.5 focus:ring-blue-500 focus:outline-none"
+                  className="w-full h-9 px-2.5 rounded-xl bg-slate-800/80 text-xs text-slate-100 border border-white/10 focus:ring-1.5 focus:ring-blue-500 focus:outline-none"
                 >
                   <option value="Computer Science & Engineering">Computer Science & Engineering</option>
                   <option value="Artificial Intelligence & Machine Learning">Artificial Intelligence & ML</option>
@@ -625,7 +536,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="signup-confirm-password" className="text-xs">Confirm Password</Label>
+                  <Label htmlFor="signup-confirm-password" className="text-xs">Confirm Pass</Label>
                   <Input
                     id="signup-confirm-password"
                     type="password"
@@ -641,7 +552,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="group/btn relative w-full h-9.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 mt-1"
+                className="group/btn relative w-full h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer disabled:opacity-50 mt-1 active:scale-[0.98]"
               >
                 {isLoading ? (
                   <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -656,10 +567,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           )}
 
-          {/* Footer note */}
-          <div className="text-center pt-1">
-            <p className="text-[11px] text-slate-500">
-              By accessing FOLIO, you agree to academic compliance and institutional terms.
+          {/* Security note footer */}
+          <div className="text-center pt-2">
+            <p className="text-[11px] text-slate-400">
+              🔒 256-Bit Encrypted • Institutional Session Storage
             </p>
           </div>
         </div>
@@ -668,14 +579,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       {/* Forgot Password Modal */}
       {isForgotModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-slate-900/90 border border-white/15 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 backdrop-blur-xl">
             <div className="flex items-center gap-3 text-blue-400">
-              <div className="size-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+              <div className="size-9 rounded-xl bg-blue-500/15 border border-blue-400/25 flex items-center justify-center">
                 <Lock className="size-4.5" />
               </div>
               <div>
                 <h3 className="font-bold text-base sm:text-lg text-white">Reset Scholar Password</h3>
-                <p className="text-xs text-slate-400">Enter your university email to receive a recovery link</p>
+                <p className="text-xs text-slate-300">Enter your university email to receive a recovery link</p>
               </div>
             </div>
 
@@ -701,13 +612,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (forgotEmail) {
-                    setSuccessMessage(`Password reset link dispatched to ${forgotEmail}`);
-                    setIsForgotModalOpen(false);
-                    setForgotEmail('');
-                  }
-                }}
+                onClick={handleForgotPassword}
                 className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-md transition-colors"
               >
                 Send Reset Link

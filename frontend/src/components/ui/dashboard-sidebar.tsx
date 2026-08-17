@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SearchInput } from './search-input';
 import FolderCard from './folder';
 import { GoogleGenAI } from '@google/genai';
+import * as SupabaseService from '../../lib/supabaseService';
+import { useAuth } from '../../lib/authContext';
 import {
   BarChart as VisxBarChart,
   Bar as VisxBar,
@@ -88,6 +90,7 @@ export interface AcademicFile {
   size: string;
   date: string;
   fileUrl?: string;
+  storagePath?: string;
   contentSnippet?: string;
   fileType?: 'pdf' | 'text' | 'doc';
   sizeBytes?: number;
@@ -137,6 +140,7 @@ export interface DesktopWebAppProps {
 }
 
 export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppProps = {}) {
+  const { updateProfile: authUpdateProfile, updatePassword: authUpdatePassword } = useAuth();
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const savedTab = localStorage.getItem('folio_active_tab');
@@ -405,88 +409,82 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch Active & Trashed Documents from Backend API
+  // Fetch Active & Trashed Documents from Supabase Cloud
   const fetchBackendDocuments = async () => {
     try {
-      const [activeRes, trashRes] = await Promise.all([
-        fetch('http://localhost:8080/api/v1/documents'),
-        fetch('http://localhost:8080/api/v1/documents/trash')
-      ]);
-
-      if (activeRes.ok) {
-        const activeDocs: any[] = await activeRes.json();
-        if (Array.isArray(activeDocs) && activeDocs.length > 0) {
-          const mappedActive: AcademicFile[] = activeDocs.map(doc => {
-            let folderId = 'f-cn';
-            if (doc.subject) {
-              if (doc.subject.code === 'CS302' || doc.subject.name?.toLowerCase().includes('database')) folderId = 'f-dbms';
-              else if (doc.subject.code === 'CS401' || doc.subject.name?.toLowerCase().includes('machine')) folderId = 'f-ml';
-              else if (doc.subject.id) folderId = `f-${doc.subject.id}`;
-            }
-            const sizeMb = doc.fileSize ? `${(doc.fileSize / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
-            const isPdf = doc.filename ? doc.filename.toLowerCase().endsWith('.pdf') : true;
-
-            return {
-              id: `doc-${doc.id}`,
-              title: doc.filename || doc.originalName || 'Untitled Document',
-              folderId: folderId,
-              source: doc.source || 'Direct Upload',
-              size: sizeMb,
-              sizeBytes: doc.fileSize || 1048576,
-              date: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recently',
-              fileType: isPdf ? 'pdf' : 'text',
-              fileUrl: doc.storagePath ? `http://localhost:8080/api/v1/documents/${doc.id}/file` : undefined,
-              contentSnippet: doc.extractedText || `Document: ${doc.filename}`,
-              isStarred: doc.favorite || false
-            };
-          });
-
-          setFiles(prev => {
-            const backendIds = new Set(mappedActive.map(d => d.id));
-            const trashedIds = new Set(trashedFiles.map(d => d.id));
-            const remainingLocal = prev.filter(p => !backendIds.has(p.id) && !trashedIds.has(p.id));
-            return [...mappedActive, ...remainingLocal];
-          });
-        }
+      // 1. Fetch Supabase Folders
+      const dbFolders = await SupabaseService.fetchFolders();
+      if (dbFolders && dbFolders.length > 0) {
+        const colors = ['#1e293b', '#334155', '#475569', '#64748b', '#0f172a'];
+        setFolders(dbFolders.map((f, idx) => ({
+          id: f.id,
+          name: f.name,
+          code: f.description?.substring(0, 8) || 'SUBJ',
+          description: f.description || 'Academic subject resource folder',
+          fileCount: 0,
+          colorHex: colors[idx % colors.length],
+          isStarred: false
+        })));
       }
 
-      if (trashRes.ok) {
-        const trashDocs: any[] = await trashRes.json();
-        if (Array.isArray(trashDocs) && trashDocs.length > 0) {
-          const mappedTrashed: AcademicFile[] = trashDocs.map(doc => {
-            let folderId = 'f-cn';
-            if (doc.subject) {
-              if (doc.subject.code === 'CS302' || doc.subject.name?.toLowerCase().includes('database')) folderId = 'f-dbms';
-              else if (doc.subject.code === 'CS401' || doc.subject.name?.toLowerCase().includes('machine')) folderId = 'f-ml';
-              else if (doc.subject.id) folderId = `f-${doc.subject.id}`;
-            }
-            const sizeMb = doc.fileSize ? `${(doc.fileSize / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
-            const isPdf = doc.filename ? doc.filename.toLowerCase().endsWith('.pdf') : true;
+      // 2. Fetch Supabase Active Files
+      const dbFiles = await SupabaseService.fetchFiles();
+      if (dbFiles) {
+        const mappedActive: AcademicFile[] = await Promise.all(dbFiles.map(async doc => {
+          let downloadUrl = '';
+          if (doc.storage_path) {
+            downloadUrl = (await SupabaseService.getFileDownloadUrl(doc.storage_path)) || '';
+          }
+          const sizeMb = doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
+          const isPdf = doc.file_name ? doc.file_name.toLowerCase().endsWith('.pdf') : true;
 
-            return {
-              id: `doc-${doc.id}`,
-              title: doc.filename || doc.originalName || 'Untitled Document',
-              folderId: folderId,
-              source: doc.source || 'Direct Upload',
-              size: sizeMb,
-              sizeBytes: doc.fileSize || 1048576,
-              date: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recently',
-              fileType: isPdf ? 'pdf' : 'text',
-              fileUrl: doc.storagePath ? `http://localhost:8080/api/v1/documents/${doc.id}/file` : undefined,
-              contentSnippet: doc.extractedText || `Document: ${doc.filename}`,
-              isStarred: doc.favorite || false
-            };
-          });
+          return {
+            id: doc.id,
+            title: doc.file_name,
+            folderId: doc.folder_id || 'f-cn',
+            source: 'Supabase Cloud',
+            size: sizeMb,
+            sizeBytes: doc.file_size || 1048576,
+            date: doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Recently',
+            fileType: isPdf ? 'pdf' : 'text',
+            fileUrl: downloadUrl || undefined,
+            storagePath: doc.storage_path,
+            contentSnippet: doc.extracted_text || `Document: ${doc.file_name}`,
+            isStarred: doc.is_starred || false
+          };
+        }));
 
-          setTrashedFiles(prev => {
-            const existingIds = new Set(prev.map(p => p.id));
-            const newFromBackend = mappedTrashed.filter(m => !existingIds.has(m.id));
-            return [...prev, ...newFromBackend];
-          });
-        }
+        setFiles(mappedActive);
+        setFolders(prev => prev.map(f => ({
+          ...f,
+          fileCount: mappedActive.filter(file => file.folderId === f.id).length
+        })));
+      }
+
+      // 3. Fetch Supabase Trashed Files
+      const dbTrashed = await SupabaseService.fetchTrashedFiles();
+      if (dbTrashed) {
+        const mappedTrashed: AcademicFile[] = dbTrashed.map(doc => {
+          const sizeMb = doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
+          const isPdf = doc.file_name ? doc.file_name.toLowerCase().endsWith('.pdf') : true;
+          return {
+            id: doc.id,
+            title: doc.file_name,
+            folderId: doc.folder_id || 'f-cn',
+            source: 'Supabase Cloud',
+            size: sizeMb,
+            sizeBytes: doc.file_size || 1048576,
+            date: doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Recently',
+            fileType: isPdf ? 'pdf' : 'text',
+            storagePath: doc.storage_path,
+            contentSnippet: doc.extracted_text || `Document: ${doc.file_name}`,
+            isStarred: doc.is_starred || false
+          };
+        });
+        setTrashedFiles(mappedTrashed);
       }
     } catch (e) {
-      console.log('Backend sync offline:', e);
+      console.warn('Supabase document fetch note:', e);
     }
   };
 
@@ -869,31 +867,26 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     const colors = ['#1e293b', '#334155', '#475569', '#64748b', '#0f172a'];
     const randomColor = colors[folders.length % colors.length];
 
-    const newFolder: SubjectFolder = {
-      id: `f-${Date.now()}`,
-      name: newFolderName,
-      code: newFolderCode || 'CS-GEN',
-      description: newFolderDesc || 'Subject academic resource folder',
-      fileCount: 0,
-      colorHex: randomColor
-    };
-
-    setFolders(prev => [...prev, newFolder]);
-
-    // Async Database Sync
     try {
-      await fetch('http://localhost:8080/api/v1/subjects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newFolderName,
-          code: newFolderCode || 'CS-GEN',
-          description: newFolderDesc || 'Subject academic resource folder',
-          colorHex: randomColor
-        })
-      });
-    } catch (e) {
-      console.log('Database sync offline, operating in local mode:', e);
+      const created = await SupabaseService.createFolder(
+        newFolderName.trim(),
+        newFolderDesc.trim(),
+        newFolderCode.trim()
+      );
+
+      const newFolder: SubjectFolder = {
+        id: created ? created.id : `f-${Date.now()}`,
+        name: newFolderName.trim(),
+        code: newFolderCode.trim() || 'CS-GEN',
+        description: newFolderDesc.trim() || 'Subject academic resource folder',
+        fileCount: 0,
+        colorHex: randomColor
+      };
+
+      setFolders(prev => [...prev, newFolder]);
+      showNotification('FOLDER CREATED', `"${newFolder.name}" saved to Supabase`, 'success');
+    } catch (err: any) {
+      showNotification('FOLDER CREATION FAILED', err?.message || 'Error creating folder in Supabase', 'warning');
     }
 
     setNewFolderName('');
@@ -902,7 +895,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     setIsCreateFolderModalOpen(false);
   };
 
-  // Upload File via Browser File Picker (Database Synced)
+  // Upload File via Browser File Picker (Supabase Private Storage & Database)
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUploadFileSubmit = async () => {
@@ -928,10 +921,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       const isPdf = fileNameToUse.toLowerCase().endsWith('.pdf');
       const localBlobUrl = URL.createObjectURL(selectedUploadFile);
       const fileSizeMb = (selectedUploadFile.size / (1024 * 1024)).toFixed(1);
-      const targetFolderId = selectedFolderId || appSettings.defaultUploadLocation;
+      const targetFolderId = selectedFolderId || folders[0]?.id || 'f-cn';
 
       // Extract text preview snippet locally for text files
-      let snippetText = `Document uploaded: ${fileNameToUse}. Saved and indexed in database.`;
+      let snippetText = `Document uploaded: ${fileNameToUse}. Stored in Supabase Private Storage.`;
       if (!isPdf && selectedUploadFile.type.includes('text')) {
         try {
           const rawText = await selectedUploadFile.text();
@@ -939,16 +932,31 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         } catch (e) { }
       }
 
+      // Upload to Supabase Storage & Database
+      let uploadedDbFile = null;
+      try {
+        uploadedDbFile = await SupabaseService.uploadFile(selectedUploadFile, targetFolderId, snippetText);
+      } catch (err) {
+        console.warn('Supabase upload fallback:', err);
+      }
+
+      let downloadUrl = localBlobUrl;
+      if (uploadedDbFile?.storage_path) {
+        const signedUrl = await SupabaseService.getFileDownloadUrl(uploadedDbFile.storage_path);
+        if (signedUrl) downloadUrl = signedUrl;
+      }
+
       const newFile: AcademicFile = {
-        id: `doc-${Date.now()}`,
+        id: uploadedDbFile?.id || `doc-${Date.now()}`,
         title: fileNameToUse,
         folderId: targetFolderId,
-        source: selectedSource,
+        source: selectedSource || 'Supabase Cloud',
         size: `${fileSizeMb} MB`,
         sizeBytes: selectedUploadFile.size,
         date: 'Just now',
         fileType: isPdf ? 'pdf' : 'text',
-        fileUrl: localBlobUrl,
+        fileUrl: downloadUrl,
+        storagePath: uploadedDbFile?.storage_path,
         contentSnippet: snippetText
       };
 
@@ -960,36 +968,6 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         }
         return f;
       }));
-
-      // Convert folder ID to numeric subject ID for PostgreSQL 15
-      let dbSubjectId = '1';
-      if (targetFolderId === 'f-dbms') dbSubjectId = '2';
-      else if (targetFolderId === 'f-ml') dbSubjectId = '3';
-      else if (targetFolderId.replace(/[^0-9]/g, '')) dbSubjectId = targetFolderId.replace(/[^0-9]/g, '');
-
-      // Async Database Multipart Upload Sync
-      try {
-        const formData = new FormData();
-        formData.append('file', selectedUploadFile);
-        formData.append('source', selectedSource);
-        formData.append('subjectId', dbSubjectId);
-
-        const uploadRes = await fetch('http://localhost:8080/api/v1/documents/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (uploadRes.ok) {
-          const savedDoc = await uploadRes.json();
-          if (savedDoc && savedDoc.id) {
-            const backendFileId = `doc-${savedDoc.id}`;
-            newFile.id = backendFileId;
-            setFiles(prev => prev.map(f => f.title === newFile.title ? { ...f, id: backendFileId } : f));
-          }
-        }
-      } catch (e) {
-        console.log('Backend upload API sync:', e);
-      }
 
       const uploadedName = fileNameToUse;
       setSelectedUploadFile(null);
@@ -1023,16 +1001,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       setTrashedFiles(prev => [targetFile, ...prev.filter(t => t.id !== targetFile.id)]);
       setFiles(prev => prev.filter(f => f.id !== fileId));
 
-      // Sync soft-delete with backend
-      const numericId = fileId.replace(/[^0-9]/g, '');
-      if (numericId) {
-        try {
-          await fetch(`http://localhost:8080/api/v1/documents/${numericId}`, {
-            method: 'DELETE'
-          });
-        } catch (e) {
-          console.log('Backend trash sync offline:', e);
-        }
+      try {
+        await SupabaseService.trashFile(fileId);
+      } catch (e) {
+        console.warn('Supabase trash error:', e);
       }
     }
     setDeletingFileTarget(null);
@@ -1052,34 +1024,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       return f;
     }));
 
-    // Sync restore with backend
-    const numericId = doc.id.replace(/[^0-9]/g, '');
-    if (numericId) {
-      try {
-        await fetch(`http://localhost:8080/api/v1/documents/${numericId}/restore`, {
-          method: 'PUT'
-        });
-      } catch (e) {
-        console.log('Backend restore sync offline:', e);
-      }
+    try {
+      await SupabaseService.restoreFile(doc.id);
+    } catch (e) {
+      console.warn('Supabase restore error:', e);
     }
     showNotification('FILE RESTORED', doc.title, 'success');
   };
 
   const handlePermanentDeleteFile = async (fileId: string) => {
+    const targetFile = trashedFiles.find(f => f.id === fileId);
     setTrashedFiles(prev => prev.filter(f => f.id !== fileId));
     setPermanentDeleteTarget(null);
-    const numericId = fileId.replace(/[^0-9]/g, '');
-    if (numericId) {
-      try {
-        await fetch(`http://localhost:8080/api/v1/documents/${numericId}/permanent`, {
-          method: 'DELETE'
-        });
-      } catch (e) {
-        console.log('Backend permanent delete sync offline:', e);
-      }
+
+    try {
+      await SupabaseService.permanentlyDeleteFile(fileId, targetFile?.storagePath);
+    } catch (e) {
+      console.warn('Supabase permanent delete error:', e);
     }
-    showNotification('PERMANENTLY DELETED', 'File removed from database', 'warning');
+    showNotification('PERMANENTLY DELETED', 'File removed from Supabase storage & database', 'warning');
   };
 
   const handleEmptyTrash = () => {
@@ -1091,18 +1054,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     setIsEmptyTrashModalOpen(false);
     setTrashedFiles([]);
 
-    // Sync empty trash with backend
     try {
-      await fetch('http://localhost:8080/api/v1/documents/trash/empty', {
-        method: 'DELETE'
-      });
+      await SupabaseService.emptyTrash();
     } catch (e) {
-      console.log('Backend empty trash sync offline:', e);
+      console.warn('Supabase empty trash error:', e);
     }
     showNotification('TRASH EMPTIED', 'All trashed files permanently removed', 'warning');
   };
 
-  // Save Edit Profile (Database Synced)
+  // Save Edit Profile (Supabase Auth & Database Synced)
   const handleSaveProfile = async () => {
     setStudentProfile(prev => ({
       ...prev,
@@ -1114,22 +1074,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }));
     setIsEditProfileModalOpen(false);
 
-    // Async Database Sync for Profile Update
     try {
-      await fetch('http://localhost:8080/api/v1/user/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: editName,
-          email: editEmail
-        })
-      });
-    } catch (e) {
-      console.log('Database user profile sync offline:', e);
+      await authUpdateProfile({ fullName: editName });
+      showNotification('PROFILE UPDATED', 'Profile saved to Supabase', 'success');
+    } catch (e: any) {
+      showNotification('PROFILE UPDATE FAILED', e?.message || 'Error updating profile', 'warning');
     }
   };
 
-  // Save Change Password (Database Synced)
+  // Save Change Password (Supabase Auth Synced)
   const handleChangePasswordSubmit = async () => {
     if (!currentPassword) {
       setPasswordFeedback('Please enter your current password.');
@@ -1145,22 +1098,20 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
     setPasswordFeedback('');
 
-    // Async Database Password Update Sync
     try {
-      await fetch('http://localhost:8080/api/v1/user/password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword })
-      });
-    } catch (e) {
-      console.log('Database password sync offline:', e);
+      const { error } = await authUpdatePassword(newPassword);
+      if (error) {
+        setPasswordFeedback(error.message || 'Error changing password in Supabase.');
+        return;
+      }
+      showNotification('PASSWORD CHANGED', 'Updated securely in Supabase Auth', 'success');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setIsChangePasswordModalOpen(false);
+    } catch (e: any) {
+      setPasswordFeedback(e?.message || 'Failed to update password.');
     }
-
-    showNotification('PASSWORD CHANGED', 'Updated securely in database', 'success');
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setIsChangePasswordModalOpen(false);
   };
 
   // Avatar Upload Handler
@@ -1171,25 +1122,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  // Native Device File Download Trigger
-  const handleDownloadToDevice = (doc: AcademicFile) => {
-    if (doc.fileUrl) {
+  // Native Device File Download Trigger (Supabase Private Signed URL)
+  const handleDownloadToDevice = async (doc: AcademicFile) => {
+    let targetUrl = doc.fileUrl;
+    if (doc.storagePath) {
+      const signed = await SupabaseService.getFileDownloadUrl(doc.storagePath);
+      if (signed) targetUrl = signed;
+    }
+
+    if (targetUrl) {
       const link = document.createElement('a');
-      link.href = doc.fileUrl;
+      link.href = targetUrl;
       link.download = doc.title;
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      showNotification('DOWNLOAD STARTED', `Exporting ${doc.title}`, 'success');
     } else {
-      const blob = new Blob([doc.contentSnippet || ''], { type: 'text/plain;charset=utf-8' });
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = doc.title;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
+      showNotification('DOWNLOAD ERROR', 'No download URL available for this file', 'warning');
     }
   };
 
