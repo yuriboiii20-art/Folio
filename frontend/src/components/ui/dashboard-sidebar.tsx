@@ -61,7 +61,8 @@ import {
   Calendar,
   CalendarDays,
   HardDrive,
-  Star
+  Star,
+  ShieldCheck
 } from 'lucide-react';
 
 export type WebNavItem = {
@@ -147,7 +148,23 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
 
   // Trash Bin & Browser Status Link State
   const [trashedFiles, setTrashedFiles] = useState<AcademicFile[]>([]);
+  const [trashedFolders, setTrashedFolders] = useState<SubjectFolder[]>(() => {
+    try {
+      const cached = localStorage.getItem('folio_cached_trashed_folders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) { }
+    return [];
+  });
   const [hoveredStatusLink, setHoveredStatusLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('folio_cached_trashed_folders', JSON.stringify(trashedFolders));
+    } catch (e) { }
+  }, [trashedFolders]);
 
   // Upcoming Deadlines State
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([
@@ -308,28 +325,106 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     setTodoTasks(prev => prev.filter(t => t.id !== id));
   };
 
-  // Toggle Star Handlers for Folders & Files
-  const handleToggleStarFolder = (folderId: string, e?: React.MouseEvent) => {
+  // Smooth Animation Out State Tracking
+  const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
+
+  // Toggle Star Handlers for Folders & Files (Database Synced)
+  const handleToggleStarFolder = async (folderId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setFolders(prev => prev.map(f => {
-      if (f.id === folderId) {
-        return { ...f, isStarred: !f.isStarred };
+    const current = folders.find(f => f.id === folderId)?.isStarred || false;
+
+    if (current && activeTab === 'starred') {
+      setAnimatingOutIds(prev => [...prev, folderId]);
+      setTimeout(async () => {
+        setFolders(prev => prev.map(f => f.id === folderId ? { ...f, isStarred: false } : f));
+        setAnimatingOutIds(prev => prev.filter(id => id !== folderId));
+        try {
+          await FirebaseService.toggleFolderStarred(folderId, true);
+        } catch (err) {
+          console.warn('Firebase folder star toggle error:', err);
+        }
+      }, 300);
+    } else {
+      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, isStarred: !current } : f));
+      try {
+        await FirebaseService.toggleFolderStarred(folderId, current);
+      } catch (err) {
+        console.warn('Firebase folder star toggle error:', err);
       }
-      return f;
-    }));
+    }
   };
 
-  const handleToggleStarFile = (fileId: string, e?: React.MouseEvent) => {
+  const handleToggleStarFile = async (fileId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setFiles(prev => prev.map(f => {
-      if (f.id === fileId) {
-        return { ...f, isStarred: !f.isStarred };
+    const current = files.find(f => f.id === fileId)?.isStarred || false;
+
+    if (current && activeTab === 'starred') {
+      setAnimatingOutIds(prev => [...prev, fileId]);
+      setTimeout(async () => {
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isStarred: false } : f));
+        setAnimatingOutIds(prev => prev.filter(id => id !== fileId));
+        try {
+          await FirebaseService.toggleFileStarred(fileId, true);
+        } catch (err) {
+          console.warn('Firebase file star toggle error:', err);
+        }
+      }, 300);
+    } else {
+      setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isStarred: !current } : f));
+      try {
+        await FirebaseService.toggleFileStarred(fileId, current);
+      } catch (err) {
+        console.warn('Firebase file star toggle error:', err);
       }
-      return f;
-    }));
+    }
+  };
+
+  // Folder Trash & Restore Handlers with Smooth Delete Animation
+  const handleTrashFolder = (folderId: string) => {
+    const targetFolder = folders.find(f => f.id === folderId);
+    if (!targetFolder) return;
+
+    setAnimatingOutIds(prev => [...prev, folderId]);
+
+    setTimeout(async () => {
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+      setTrashedFolders(prev => [targetFolder, ...prev]);
+      setAnimatingOutIds(prev => prev.filter(id => id !== folderId));
+      showNotification('FOLDER DISCARDED', `"${targetFolder.name}" moved to Trash Bin`, 'info');
+
+      try {
+        await FirebaseService.trashFolder(folderId);
+      } catch (err) {
+        console.warn('Firebase folder trash note:', err);
+      }
+    }, 300);
+  };
+
+  const handleRestoreFolder = async (folder: SubjectFolder) => {
+    setTrashedFolders(prev => prev.filter(f => f.id !== folder.id));
+    setFolders(prev => [folder, ...prev]);
+    showNotification('FOLDER RESTORED', `"${folder.name}" restored to library`, 'success');
+
+    try {
+      await FirebaseService.restoreFolder(folder.id);
+    } catch (err) {
+      console.warn('Firebase folder restore note:', err);
+    }
+  };
+
+  const handlePermanentDeleteFolder = async (folderId: string) => {
+    setTrashedFolders(prev => prev.filter(f => f.id !== folderId));
+    showNotification('FOLDER PERMANENTLY DELETED', 'Folder removed permanently', 'warning');
+
+    try {
+      await FirebaseService.deleteFolder(folderId);
+    } catch (err) {
+      console.warn('Firebase permanent folder deletion note:', err);
+    }
   };
 
   // Modals Open State
+  const [policyModalType, setPolicyModalType] = useState<'terms' | 'privacy' | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [notificationModal, setNotificationModal] = useState<{
     isOpen: boolean;
@@ -427,7 +522,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
           description: f.description || 'Academic subject resource folder',
           fileCount: 0,
           colorHex: colors[idx % colors.length],
-          isStarred: false
+          isStarred: Boolean(f.is_starred)
         })));
       }
 
@@ -488,6 +583,20 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
           };
         });
         setTrashedFiles(mappedTrashed);
+      }
+
+      // 4. Fetch Firebase Trashed Folders
+      const dbTrashedFolders = await FirebaseService.fetchTrashedFolders();
+      if (dbTrashedFolders) {
+        setTrashedFolders(dbTrashedFolders.map((f, idx) => ({
+          id: f.id,
+          name: f.name,
+          code: f.subject_name || f.description?.substring(0, 8) || 'SUBJ',
+          description: f.description || 'Academic subject resource folder',
+          fileCount: 0,
+          colorHex: '#64748b',
+          isStarred: Boolean(f.is_starred)
+        })));
       }
     } catch (e) {
       console.warn('Firebase document fetch note:', e);
@@ -553,88 +662,96 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     autoRenameDuplicates: true,
   });
 
-  // Dynamic Folders State
-  const [folders, setFolders] = useState<SubjectFolder[]>([
-    {
-      id: 'f-cn',
-      name: 'Computer Networks',
-      code: 'CS301',
-      description: 'OSI layers, TCP/IP protocol stack, IP addressing & CIDR subnetting notes',
-      fileCount: 4,
-      colorHex: '#334155'
-    },
-    {
-      id: 'f-dbms',
-      name: 'Database Management',
-      code: 'CS302',
-      description: 'SQL query optimization, ER diagrams, 3NF Normalization & ACID properties',
-      fileCount: 3,
-      colorHex: '#475569'
-    },
-    {
-      id: 'f-ml',
-      name: 'Machine Learning',
-      code: 'CS401',
-      description: 'Supervised algorithms, Decision Trees, Neural Networks & python lab manuals',
-      fileCount: 5,
-      colorHex: '#0f172a'
-    }
-  ]);
+  // Dynamic Folders State (Synced with localStorage cache)
+  const [folders, setFolders] = useState<SubjectFolder[]>(() => {
+    try {
+      const cached = localStorage.getItem('folio_cached_folders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { }
+    return [
+      {
+        id: 'f-cn',
+        name: 'Computer Networks',
+        code: 'CS301',
+        description: 'OSI layers, TCP/IP protocol stack, IP addressing & CIDR subnetting notes',
+        fileCount: 4,
+        colorHex: '#334155'
+      },
+      {
+        id: 'f-dbms',
+        name: 'Database Management',
+        code: 'CS302',
+        description: 'SQL query optimization, ER diagrams, 3NF Normalization & ACID properties',
+        fileCount: 3,
+        colorHex: '#475569'
+      },
+      {
+        id: 'f-ml',
+        name: 'Machine Learning',
+        code: 'CS401',
+        description: 'Supervised algorithms, Decision Trees, Neural Networks & python lab manuals',
+        fileCount: 5,
+        colorHex: '#0f172a'
+      }
+    ];
+  });
 
-  // Dynamic Files State
-  const [files, setFiles] = useState<AcademicFile[]>([
-    {
-      id: 'doc-1',
-      title: 'Unit-1_IP_Addressing_Notes.pdf',
-      folderId: 'f-cn',
-      source: 'WhatsApp',
-      size: '1.0 MB',
-      sizeBytes: 1048576,
-      date: 'Today',
-      fileType: 'pdf',
-      fileUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf',
-      contentSnippet: 'Chapter 1: IP Addressing Principles, Subnetting, IPv4 Header structure, and CIDR Notation.'
-    },
-    {
-      id: 'doc-2',
-      title: 'Relational_Algebra_Assignment.pdf',
-      folderId: 'f-dbms',
-      source: 'Google Classroom',
-      size: '2.0 MB',
-      sizeBytes: 2097152,
-      date: 'Yesterday',
-      fileType: 'pdf',
-      fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-      contentSnippet: 'Assignment 2: Selection (σ), Projection (π), Cartesian Product (×), and Natural Join (⋈) queries.'
-    },
-    {
-      id: 'doc-3',
-      title: 'Machine_Learning_Lab_Manual.pdf',
-      folderId: 'f-ml',
-      source: 'Direct Upload',
-      size: '3.4 MB',
-      sizeBytes: 3565158,
-      date: '3 days ago',
-      fileType: 'text',
-      contentSnippet: `LAB PROGRAM 1: DECISION TREE CLASSIFIER
+  // Dynamic Files State (Synced with localStorage cache)
+  const [files, setFiles] = useState<AcademicFile[]>(() => {
+    try {
+      const cached = localStorage.getItem('folio_cached_files');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { }
+    return [
+      {
+        id: 'doc-1',
+        title: 'Unit-1_IP_Addressing_Notes.pdf',
+        folderId: 'f-cn',
+        source: 'WhatsApp',
+        size: '1.0 MB',
+        sizeBytes: 1048576,
+        date: 'Today',
+        fileType: 'pdf',
+        fileUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf',
+        contentSnippet: 'Chapter 1: IP Addressing Principles, Subnetting, IPv4 Header structure, and CIDR Notation.'
+      },
+      {
+        id: 'doc-2',
+        title: 'Relational_Algebra_Assignment.pdf',
+        folderId: 'f-dbms',
+        source: 'Google Classroom',
+        size: '2.0 MB',
+        sizeBytes: 2097152,
+        date: 'Yesterday',
+        fileType: 'pdf',
+        fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        contentSnippet: 'Assignment 2: Selection (σ), Projection (π), Cartesian Product (×), and Natural Join (⋈) queries.'
+      }
+    ];
+  });
 
-Objectives:
-1. Load Iris Dataset using scikit-learn.
-2. Train DecisionTreeClassifier with entropy criterion.
-3. Visualize decision boundaries and tree nodes.
+  // Persist folders and files changes to local browser storage immediately
+  useEffect(() => {
+    try {
+      if (folders && folders.length > 0) {
+        localStorage.setItem('folio_cached_folders', JSON.stringify(folders));
+      }
+    } catch (e) { }
+  }, [folders]);
 
-Python Implementation Snippet:
-from sklearn.datasets import load_iris
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split
-
-iris = load_iris()
-X_train, X_test, y_train, y_test = train_test_split(iris.data, iris.target, test_size=0.2)
-clf = DecisionTreeClassifier(criterion='entropy')
-clf.fit(X_train, y_train)
-print("Model Accuracy:", clf.score(X_test, y_test))`
-    }
-  ]);
+  useEffect(() => {
+    try {
+      if (files && files.length > 0) {
+        localStorage.setItem('folio_cached_files', JSON.stringify(files));
+      }
+    } catch (e) { }
+  }, [files]);
 
   // Form States
   const [newFolderName, setNewFolderName] = useState('');
@@ -663,7 +780,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     { id: 'home', title: 'Subject Folders', icon: Home, badge: folders.length, badgeColor: 'bg-slate-200 text-slate-800' },
     { id: 'analytics', title: 'Analytics', icon: BarChart2 },
     { id: 'ai-studio', title: 'AI Studio', icon: Bot, badge: 'RAG', badgeColor: 'bg-slate-800 text-white' },
-    { id: 'trash', title: 'Trash', icon: Trash2, badge: trashedFiles.length, badgeColor: trashedFiles.length > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-400' },
+    { id: 'terms', title: 'Terms & Conditions', icon: FileText },
+    { id: 'privacy', title: 'Privacy Policy', icon: ShieldCheck },
+    { id: 'trash', title: 'Trash', icon: Trash2 },
     { id: 'settings', title: 'Settings', icon: Settings },
   ];
 
@@ -1004,9 +1123,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  const performDeleteFile = async (fileId: string) => {
+  const performDeleteFile = (fileId: string) => {
     const targetFile = files.find(f => f.id === fileId);
-    if (targetFile) {
+    if (!targetFile) return;
+
+    setDeletingFileTarget(null);
+    setAnimatingOutIds(prev => [...prev, fileId]);
+
+    setTimeout(async () => {
       setFolders(prev => prev.map(f => {
         if (f.id === targetFile.folderId) {
           return { ...f, fileCount: Math.max(0, f.fileCount - 1) };
@@ -1015,18 +1139,19 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       }));
       setTrashedFiles(prev => [targetFile, ...prev.filter(t => t.id !== targetFile.id)]);
       setFiles(prev => prev.filter(f => f.id !== fileId));
+      setAnimatingOutIds(prev => prev.filter(id => id !== fileId));
+
+      if (readingFile?.id === fileId) {
+        setReadingFile(null);
+      }
+      showNotification('MOVED TO TRASH', targetFile.title || 'File moved to trash', 'info');
 
       try {
         await FirebaseService.trashFile(fileId);
       } catch (e) {
         console.warn('Firebase trash error:', e);
       }
-    }
-    setDeletingFileTarget(null);
-    if (readingFile?.id === fileId) {
-      setReadingFile(null);
-    }
-    showNotification('MOVED TO TRASH', targetFile?.title || 'File moved to trash', 'info');
+    }, 300);
   };
 
   const handleRestoreFile = async (doc: AcademicFile) => {
@@ -1533,8 +1658,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       <div className="col-span-12 sm:col-span-4 flex flex-row sm:flex-col gap-2">
                         {/* Total Folders Small Box */}
                         <div
-                          onClick={() => setActiveTab('home')}
-                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 flex items-center justify-between"
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -1549,13 +1673,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                               </span>
                             </div>
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
                         </div>
 
                         {/* Total Files Small Box */}
                         <div
-                          onClick={() => setActiveTab('home')}
-                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 flex items-center justify-between"
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -1570,7 +1692,6 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                               </span>
                             </div>
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
                         </div>
                       </div>
 
@@ -1632,79 +1753,78 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       </span>
                     </div>
 
-                    {folders.filter(f => f.isStarred).length === 0 && files.filter(f => f.isStarred).length === 0 ? (
-                      <div className="text-center py-3 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-                        <p className="text-[11px] font-medium text-slate-500">
-                          Star <Star className="w-3 h-3 inline text-amber-400 fill-amber-400 mx-0.5" /> any file or folder to pin it here.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                        {/* Starred Folders */}
-                        {folders.filter(f => f.isStarred).map((folder) => {
-                          const folderFiles = files.filter(f => f.folderId === folder.id);
-                          return (
-                            <div
-                              key={folder.id}
-                              className="relative group"
-                            >
-                              <button
-                                onClick={(e) => handleToggleStarFolder(folder.id, e)}
-                                className="absolute top-2 right-2 z-20 p-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100 shadow-2xs"
-                                title="Unstar folder"
-                              >
-                                <Star className="w-3.5 h-3.5 fill-amber-400" />
-                              </button>
-                              <FolderCard
-                                title={folder.name}
-                                code={folder.code}
-                                description={folder.description}
-                                fileCount={folderFiles.length}
-                                onClick={() => {
-                                  setOpenedFolderId(folder.id);
-                                  setActiveTab('home');
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
+                    {(() => {
+                      const starredFoldersList = folders.filter(f => f.isStarred);
+                      const starredFilesList = files.filter(f => f.isStarred);
+                      const totalStarred = [
+                        ...starredFoldersList.map(f => ({ id: f.id, title: f.name, isFolder: true, folderId: f.id })),
+                        ...starredFilesList.map(file => ({ id: file.id, title: formatFileTitle(file.title), isFolder: false, fileObj: file }))
+                      ];
 
-                        {/* Starred Files */}
-                        {files.filter(f => f.isStarred).map((file) => (
-                          <div
-                            key={file.id}
-                            className="flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 transition-all cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 rounded-md bg-slate-200 border border-slate-300 text-slate-700 flex items-center justify-center shrink-0">
-                                <FileText className="w-3 h-3" />
-                              </div>
-                              <h4 className="text-xs font-bold text-slate-900 truncate">
-                                {formatFileTitle(file.title)}
-                              </h4>
-                            </div>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                onClick={() => setReadingFile(file)}
-                                className="p-0.5 px-1.5 rounded bg-slate-900 text-white text-[9px] font-bold hover:bg-slate-800 cursor-pointer flex items-center gap-1"
-                                title="Read In-App"
-                              >
-                                <Eye className="w-2.5 h-2.5" />
-                                <span>Read</span>
-                              </button>
-                              <button
-                                onClick={(e) => handleToggleStarFile(file.id, e)}
-                                className="p-1 text-amber-500 hover:text-amber-700 transition-all cursor-pointer"
-                                title="Unstar file"
-                              >
-                                <Star className="w-3.5 h-3.5 fill-amber-400" />
-                              </button>
-                            </div>
+                      if (totalStarred.length === 0) {
+                        return (
+                          <div className="text-center py-3 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                            <p className="text-[11px] font-medium text-slate-500">
+                              Star <Star className="w-3 h-3 inline text-amber-400 fill-amber-400 mx-0.5" /> any file or folder to pin it here.
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                          {totalStarred.map((item, index) => (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                if (item.isFolder) {
+                                  setOpenedFolderId(item.folderId);
+                                  setActiveTab('home');
+                                } else if (item.fileObj) {
+                                  setReadingFile(item.fileObj);
+                                }
+                              }}
+                              className={`flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all duration-300 ease-in-out cursor-pointer ${
+                                animatingOutIds.includes(item.id)
+                                  ? 'opacity-0 scale-90 -translate-x-4 pointer-events-none'
+                                  : 'opacity-100 scale-100 translate-x-0'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                  {index + 1}.
+                                </span>
+                                {item.isFolder ? (
+                                  <FolderClosed className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                ) : (
+                                  <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                )}
+                                <span className="text-xs font-medium truncate text-slate-900" title={item.title}>
+                                  {item.title}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.isFolder) {
+                                      handleToggleStarFolder(item.id, e);
+                                    } else {
+                                      handleToggleStarFile(item.id, e);
+                                    }
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                  title="Unstar item"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                 </div>
@@ -2063,7 +2183,27 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     {folders.map((folder) => {
                       const folderFiles = files.filter(f => f.folderId === folder.id);
                       return (
-                        <div key={folder.id} className="relative group">
+                        <div
+                          key={folder.id}
+                          className={`relative group transition-all duration-300 ease-in-out ${
+                            animatingOutIds.includes(folder.id)
+                              ? 'opacity-0 scale-75 -translate-y-4 pointer-events-none'
+                              : 'opacity-100 scale-100 translate-y-0'
+                          }`}
+                        >
+                          {/* Delete/Discard Folder Button (Moves to Trash) */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTrashFolder(folder.id);
+                            }}
+                            className="absolute top-2 left-2 z-20 p-1.5 rounded-lg border border-slate-200 bg-white/80 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all cursor-pointer shadow-2xs opacity-90 group-hover:opacity-100"
+                            title="Discard folder (Move to Trash)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Star Folder Button */}
                           <button
                             onClick={(e) => handleToggleStarFolder(folder.id, e)}
                             className={`absolute top-2 right-2 z-20 p-1.5 rounded-lg border transition-colors cursor-pointer ${
@@ -2647,6 +2787,231 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   <span className="px-3 py-1 bg-slate-200 text-slate-800 font-bold rounded-md border border-slate-300">Active</span>
                 </div>
 
+                {/* Legal & Compliance Policies Box */}
+                <div className="p-5 rounded-lg bg-white border border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-slate-700" />
+                        <span>Legal Agreements & Academic Policies</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Review academic data privacy guidelines, terms of service, and student usage rules.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => setActiveTab('terms')}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer active:scale-95"
+                    >
+                      <FileText className="w-4 h-4 text-slate-300" />
+                      <span>Terms & Conditions</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('privacy')}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-slate-600" />
+                      <span>Privacy Policy</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* TERMS & CONDITIONS FULL PAGE */}
+          {activeTab === 'terms' && (
+            <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+              {/* Header Card */}
+              <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shrink-0">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-black tracking-wider uppercase mb-1">
+                      <span>Legal Agreement</span>
+                      <span className="text-slate-300">•</span>
+                      <span>Version 2.4.0</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Terms & Conditions of Service</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-1">
+                      Official terms governing student access, academic note uploads, and system usage rules.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Terms Content Body Cards */}
+              <div className="space-y-4 text-xs text-slate-700">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-medium text-slate-800 text-xs leading-relaxed">
+                    Welcome to FOLIO Academic OS. Please read these Terms & Conditions carefully. By accessing your scholar portal, uploading subject resources, or creating study folders, you agree to comply with institutional academic standards and the rules outlined below.
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">1</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Academic Purpose & Fair Use</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        FOLIO is provided exclusively for personal study organization, lecture note storage, assignment tracking, and academic revision. Commercial misuse or hosting unauthorized files is strictly prohibited.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">2</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Intellectual Property & Student Work</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        Students retain 100% copyright ownership over their original handwritten notes, study guides, and authored documents. Uploading proprietary examination papers without authorization violates institutional policy.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">3</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">USN Verification & Account Security</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        Your Student USN identifier must reflect your official university credentials. Account security and login session confidentiality remain the sole responsibility of the registered scholar.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">4</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Storage Policies & Discard Mechanics</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        Subject folders and notes moved to the Trash Bin are held in staging before permanent removal. Users are encouraged to maintain backup copies of critical course projects.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-xl border border-slate-200 bg-slate-900 text-white space-y-2">
+                    <h3 className="font-extrabold text-sm flex items-center gap-2 text-slate-100">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Limitation of Liability & Institutional Portal Disclaimer</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      FOLIO OS operates as an auxiliary learning management utility. Official academic grades, attendance percentages, and formal semester registrations remain governed strictly by your official university administration portals.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PRIVACY POLICY FULL PAGE */}
+          {activeTab === 'privacy' && (
+            <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+              {/* Header Card */}
+              <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+                    <ShieldCheck className="w-6 h-6 text-emerald-100" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black tracking-wider uppercase mb-1">
+                      <span>Data Protection</span>
+                      <span className="text-emerald-300">•</span>
+                      <span>Privacy Standard</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Data Privacy Policy</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-1">
+                      How your student credentials, USN identifier, and uploaded documents are protected and stored.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Privacy Content Body Cards */}
+              <div className="space-y-4 text-xs text-slate-700">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+                  <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200/80 font-medium text-emerald-950 text-xs leading-relaxed">
+                    We strictly prioritize student privacy and data security. FOLIO handles student USN identifiers, uploaded subject files, and personal credentials with institutional-grade protection and encryption.
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">1</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Information We Process</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        We process student names, University Seat Numbers (USN), academic department/branch, email addresses, and document file metadata required to construct your personalized subject folders.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">2</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Cloud Firestore Encryption</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        All student database documents stored in Google Cloud Firestore are encrypted both in transit (SSL/TLS) and at rest. Access is governed strictly by Firebase Security Rules.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">3</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Zero Commercial Data Sales</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        FOLIO will never sell, lease, monetize, or disclose student records or uploaded notes to third-party ad networks, marketing brokers, or external entities.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">4</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Local Browser Caching</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        To enable instant offline loading, subject folder structures and starred items are cached securely in your browser's local storage (`localStorage`) on your physical device.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-xl border border-slate-200 bg-slate-900 text-white space-y-2">
+                    <h3 className="font-extrabold text-sm flex items-center gap-2 text-slate-100">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Data Ownership & Right to Erasure</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      You retain full control over your academic data. You can empty your Trash Bin, update your USN profile, or request complete account erasure at any time through Workspace Settings.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -2670,9 +3035,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-xs font-bold text-slate-500">
-                    {trashedFiles.length} {trashedFiles.length === 1 ? 'item' : 'items'} in Trash
+                    {trashedFolders.length + trashedFiles.length} {trashedFolders.length + trashedFiles.length === 1 ? 'item' : 'items'} in Trash
                   </span>
-                  {trashedFiles.length > 0 && (
+                  {(trashedFiles.length > 0 || trashedFolders.length > 0) && (
                     <button
                       onClick={handleEmptyTrash}
                       className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-95"
@@ -2684,70 +3049,281 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 </div>
               </div>
 
-              {/* Trashed Files Listing */}
-              {trashedFiles.length === 0 ? (
+              {/* Trashed Items Listing (Folders & Files) */}
+              {trashedFolders.length === 0 && trashedFiles.length === 0 ? (
                 <div className="p-12 rounded-xl border border-dashed border-slate-300 bg-white text-center space-y-3">
                   <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                     <Trash2 className="w-6 h-6" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-700">Trash is Empty</h3>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    When you delete notes or documents from your library, they will appear here before being permanently removed.
+                    When you delete subject folders or documents from your library, they will appear here before being permanently removed.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
-                    Deleted Files ({trashedFiles.length})
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {trashedFiles.map((doc) => {
-                      const subjectFolder = folders.find(f => f.id === doc.folderId);
-                      return (
-                        <div
-                          key={doc.id}
-                          className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
-                                {doc.fileType === 'pdf' ? 'PDF' : 'DOC'}
-                              </div>
-                              <div className="min-w-0">
-                                <h4 className="text-xs font-bold text-slate-900 truncate" title={doc.title}>
-                                  {doc.title}
-                                </h4>
-                                <div className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                  Folder: <span className="font-bold text-slate-600">{subjectFolder?.name || 'General'}</span>
+                <div className="space-y-8">
+                  {/* Trashed Folders */}
+                  {trashedFolders.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                        Deleted Subject Folders ({trashedFolders.length})
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {trashedFolders.map((folder) => (
+                          <div
+                            key={folder.id}
+                            className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100">
+                                  <FolderClosed className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-bold text-slate-900 truncate" title={folder.name}>
+                                    {folder.name}
+                                  </h4>
+                                  <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    Subject Code: <span className="font-bold text-slate-600">{folder.code || 'SUBJ'}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <span className="text-[11px] font-mono text-slate-400">{doc.size}</span>
-                            <div className="flex items-center gap-2">
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                              <span className="text-[11px] font-mono text-slate-400">Folder</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleRestoreFolder(folder)}
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
+                                  title="Restore folder to library"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+                                  <span>Restore</span>
+                                </button>
+                                <button
+                                  onClick={() => handlePermanentDeleteFolder(folder.id)}
+                                  className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
+                                  title="Delete folder permanently"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trashed Files */}
+                  {trashedFiles.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                        Deleted Files ({trashedFiles.length})
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {trashedFiles.map((doc) => {
+                          const subjectFolder = folders.find(f => f.id === doc.folderId);
+                          return (
+                            <div
+                              key={doc.id}
+                              className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
+                                    {doc.fileType === 'pdf' ? 'PDF' : 'DOC'}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <h4 className="text-xs font-bold text-slate-900 truncate" title={doc.title}>
+                                      {doc.title}
+                                    </h4>
+                                    <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                      Folder: <span className="font-bold text-slate-600">{subjectFolder?.name || 'General'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                <span className="text-[11px] font-mono text-slate-400">{doc.size}</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleRestoreFile(doc)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
+                                    title="Restore to folder"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+                                    <span>Restore</span>
+                                  </button>
+                                  <button
+                                    onClick={() => setPermanentDeleteTarget(doc)}
+                                    className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
+                                    title="Delete permanently"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STARRED RESOURCES TAB */}
+          {activeTab === 'starred' && (
+            <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-300">
+              {/* Header Card */}
+              <div className="p-6 rounded-xl border border-slate-200 bg-white shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 border border-amber-200 flex items-center justify-center shadow-2xs">
+                    <Star className="w-5 h-5 fill-amber-400" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Starred Academic Resources</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">
+                      Quick access to your pinned subject folders, key study documents, and priority notes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-3 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+                    {folders.filter(f => f.isStarred).length} Folders
+                  </span>
+                  <span className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-800 border border-slate-200">
+                    {files.filter(f => f.isStarred).length} Files
+                  </span>
+                </div>
+              </div>
+
+              {/* Check if anything is starred */}
+              {folders.filter(f => f.isStarred).length === 0 && files.filter(f => f.isStarred).length === 0 ? (
+                <div className="p-12 rounded-xl border border-dashed border-slate-300 bg-white text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-400 flex items-center justify-center mx-auto border border-amber-100">
+                    <Star className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">No Starred Resources Yet</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Click the star icon on any subject folder or document in your library to pin it here for instant one-click access.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('home')}
+                    className="mt-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black cursor-pointer hover:bg-slate-800 transition-all"
+                  >
+                    Browse All Folders
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* 1. Minimal Starred Folders List (To-Do Style) */}
+                  {folders.filter(f => f.isStarred).length > 0 && (
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-mono font-bold tracking-widest text-slate-500 uppercase flex items-center gap-2">
+                        <FolderClosed className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Starred Folders ({folders.filter(f => f.isStarred).length})</span>
+                      </h2>
+
+                      <div className="space-y-2">
+                        {folders.filter(f => f.isStarred).map((folder, index) => (
+                          <div
+                            key={folder.id}
+                            onClick={() => {
+                              setOpenedFolderId(folder.id);
+                              setActiveTab('home');
+                            }}
+                            className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all duration-300 ease-in-out cursor-pointer ${
+                              animatingOutIds.includes(folder.id)
+                                ? 'opacity-0 scale-90 -translate-x-4 pointer-events-none'
+                                : 'opacity-100 scale-100 translate-x-0'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                              <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                {index + 1}.
+                              </span>
+                              <FolderClosed className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <span className="text-xs font-medium truncate text-slate-900" title={folder.name}>
+                                {folder.name}
+                              </span>
+                            </div>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleStarFolder(folder.id, e);
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer shrink-0"
+                              title="Unstar Folder"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Minimal Starred Files List (To-Do Style) */}
+                  {files.filter(f => f.isStarred).length > 0 && (
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-mono font-bold tracking-widest text-slate-500 uppercase flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Starred Files ({files.filter(f => f.isStarred).length})</span>
+                      </h2>
+
+                      <div className="space-y-2">
+                        {files.filter(f => f.isStarred).map((doc, index) => (
+                          <div
+                            key={doc.id}
+                            className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all duration-300 ease-in-out cursor-pointer ${
+                              animatingOutIds.includes(doc.id)
+                                ? 'opacity-0 scale-90 -translate-x-4 pointer-events-none'
+                                : 'opacity-100 scale-100 translate-x-0'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                              <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                {index + 1}.
+                              </span>
+                              <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span className="text-xs font-medium truncate text-slate-900" title={doc.title}>
+                                {formatFileTitle(doc.title)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <button
-                                onClick={() => handleRestoreFile(doc)}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
-                                title="Restore to folder"
+                                onClick={() => setReadingFile(doc)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 cursor-pointer"
                               >
-                                <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
-                                <span>Restore</span>
+                                <Eye className="w-3 h-3" />
+                                <span>View</span>
                               </button>
+
                               <button
-                                onClick={() => setPermanentDeleteTarget(doc)}
-                                className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
-                                title="Delete permanently"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStarFile(doc.id, e);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                title="Unstar File"
                               >
-                                <X className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3373,6 +3949,161 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               OK
             </button>
 
+          </div>
+        </div>
+      )}
+
+      {/* TERMS & CONDITIONS / PRIVACY POLICY MODAL */}
+      {policyModalType && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-200">
+                  {policyModalType === 'terms' ? <FileText className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5 text-emerald-400" />}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-tight">
+                    {policyModalType === 'terms' ? 'Terms & Conditions of Service' : 'Data Privacy Policy & Protection'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-mono">FOLIO OS • Version 2.4.0 • Updated August 2026</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPolicyModalType(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body / Scrollable Policy Text */}
+            <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-700 leading-relaxed font-sans">
+              {policyModalType === 'terms' ? (
+                <>
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 font-medium">
+                    Please read these Terms & Conditions carefully before using the FOLIO Academic OS platform. By accessing or uploading academic notes, you agree to abide by institutional fair-use guidelines.
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">1</span>
+                      Academic Fair-Use & Purpose
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      FOLIO is designed solely for academic note management, subject resource cataloging, and personal study organization. Users agree not to upload non-academic, infringing, or harmful file types.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">2</span>
+                      Intellectual Property & Student Ownership
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      Students retain full copyright ownership of their original handwritten notes, summaries, and self-authored study materials. Uploading copyrighted course materials without authorization is prohibited.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">3</span>
+                      User Account Responsibility & USN Verification
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      You are responsible for maintaining the security of your account credentials and student USN identifier. Any activity performed under your account remains your responsibility.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">4</span>
+                      Storage Quotas & Trash Bin Discard Rules
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      Deleted files and folders are placed in the Trash Bin where they can be restored or permanently purged. Storage quotas are governed by Cloud Firestore security policies.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">5</span>
+                      Service Availability
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      FOLIO OS provides local offline storage fallback for high availability. However, cloud synchronization depends on active internet connectivity and Firebase service availability.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 font-medium text-emerald-950">
+                    Your academic data privacy is our highest priority. We protect student USN identifiers, note uploads, and personal credentials using end-to-end security measures.
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">1</span>
+                      Information We Process
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      We store your Full Name, USN, Department/Branch, Email, and document metadata required to categorize subject folders and calculate study streak metrics.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">2</span>
+                      Firebase Encryption & Security Rules
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      All data stored in Cloud Firestore is encrypted in transit and at rest using SSL/TLS protocols. Access is restricted strictly to authenticated user sessions.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">3</span>
+                      Zero Third-Party Commercial Sales
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      We never sell, rent, or trade student personal information or uploaded document contents to commercial advertisers or data brokers.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">4</span>
+                      Local Storage & Offline Caching
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      FOLIO uses your browser's local storage (`localStorage`) to cache subject folders and starred notes for instant offline performance. This data remains on your physical device.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">5</span>
+                      Account Deletion & Data Right
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      You have the right to request full account erasure and permanent deletion of your stored files from Cloud Firestore at any time via Settings.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
+              <button
+                onClick={() => setPolicyModalType(null)}
+                className="px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-black shadow-xs cursor-pointer active:scale-95 transition-all"
+              >
+                I Understand & Close
+              </button>
+            </div>
           </div>
         </div>
       )}
