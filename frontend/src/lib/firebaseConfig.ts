@@ -4,12 +4,30 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDemoFolioKeyForFrontendInit_12345',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'folio-academic-os.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'folio-academic-os',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'folio-academic-os.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1029384756',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:1029384756:web:abcdef1234567890',
+  apiKey:
+    import.meta.env.VITE_FIREBASE_API_KEY ||
+    import.meta.env.VITE_API_KEY ||
+    'AIzaSyDemoFolioKeyForFrontendInit_12345',
+  authDomain:
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
+    import.meta.env.VITE_AUTH_DOMAIN ||
+    'folio-academic-os.firebaseapp.com',
+  projectId:
+    import.meta.env.VITE_FIREBASE_PROJECT_ID ||
+    import.meta.env.VITE_PROJECT_ID ||
+    'folio-academic-os',
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
+    import.meta.env.VITE_STORAGE_BUCKET ||
+    'folio-academic-os.appspot.com',
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
+    import.meta.env.VITE_MESSAGING_SENDER_ID ||
+    '1029384756',
+  appId:
+    import.meta.env.VITE_FIREBASE_APP_ID ||
+    import.meta.env.VITE_APP_ID ||
+    '1:1029384756:web:abcdef1234567890',
 };
 
 // Initialize Firebase once
@@ -20,6 +38,6 @@ export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export const isFirebaseConfigured = Boolean(
-  import.meta.env.VITE_FIREBASE_API_KEY &&
-  import.meta.env.VITE_FIREBASE_PROJECT_ID
+  (import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_API_KEY) &&
+  (import.meta.env.VITE_FIREBASE_PROJECT_ID || import.meta.env.VITE_PROJECT_ID)
 );
