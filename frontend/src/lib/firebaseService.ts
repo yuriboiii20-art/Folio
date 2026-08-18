@@ -38,6 +38,7 @@ export interface DbFile {
   file_name: string;
   original_file_name?: string;
   storage_path: string;
+  data_url?: string;
   file_type?: string;
   mime_type?: string;
   file_size?: number;
@@ -223,6 +224,7 @@ export const fetchFiles = async (folderId?: string): Promise<DbFile[]> => {
         file_name: data.file_name,
         original_file_name: data.original_file_name || data.file_name,
         storage_path: data.storage_path || '',
+        data_url: data.data_url || '',
         file_type: data.file_type || 'doc',
         mime_type: data.mime_type || 'application/octet-stream',
         file_size: data.file_size || 0,
@@ -266,6 +268,7 @@ export const fetchTrashedFiles = async (): Promise<DbFile[]> => {
         file_name: data.file_name,
         original_file_name: data.original_file_name || data.file_name,
         storage_path: data.storage_path || '',
+        data_url: data.data_url || '',
         file_type: data.file_type || 'doc',
         mime_type: data.mime_type || 'application/octet-stream',
         file_size: data.file_size || 0,
@@ -286,6 +289,15 @@ export const fetchTrashedFiles = async (): Promise<DbFile[]> => {
   }
 };
 
+const fileToDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 export const uploadFile = async (
   file: File,
   folderId?: string | null,
@@ -302,7 +314,15 @@ export const uploadFile = async (
   const fileExt = file.name.split('.').pop()?.toLowerCase();
   const fileType = fileExt === 'pdf' ? 'pdf' : (fileExt === 'txt' || fileExt === 'md' ? 'text' : 'doc');
 
-  const newFileRecord = {
+  let fileDataUrl: string | undefined = undefined;
+  // If file is reasonable size (< 800KB), convert to Data URL for Firestore persistence
+  if (file.size < 800 * 1024) {
+    try {
+      fileDataUrl = await fileToDataUrl(file);
+    } catch (e) { }
+  }
+
+  const newFileRecord: any = {
     user_id: userId,
     folder_id: folderId || null,
     file_name: file.name,
@@ -319,12 +339,20 @@ export const uploadFile = async (
     updated_at: new Date().toISOString(),
   };
 
+  if (fileDataUrl) {
+    newFileRecord.data_url = fileDataUrl;
+  }
+
+  // 1. Try uploading to Firebase Storage if active
   try {
-    // 1. Upload to Firebase Storage
     const storageReference = ref(storage, storagePath);
     await uploadBytes(storageReference, file);
+  } catch (storageErr) {
+    console.warn('Firebase Cloud Storage note (using Cloud Firestore database persistence):', storageErr);
+  }
 
-    // 2. Save metadata into Cloud Firestore database
+  // 2. Save document record in Cloud Firestore database
+  try {
     const filesRef = collection(db, 'files');
     const docRef = await addDoc(filesRef, newFileRecord);
 
@@ -333,19 +361,19 @@ export const uploadFile = async (
       ...newFileRecord
     };
   } catch (error) {
-    console.error('Firebase file upload error:', error);
+    console.error('Firestore save document error:', error);
     throw error;
   }
 };
 
-export const getFileDownloadUrl = async (storagePath: string): Promise<string | null> => {
+export const getFileDownloadUrl = async (storagePath: string, fileDataUrl?: string): Promise<string | null> => {
+  if (fileDataUrl) return fileDataUrl;
   if (!storagePath) return null;
   try {
     const storageReference = ref(storage, storagePath);
     const downloadUrl = await getDownloadURL(storageReference);
     return downloadUrl;
   } catch (e) {
-    console.warn('Could not generate Firebase download URL for:', storagePath, e);
     return null;
   }
 };
