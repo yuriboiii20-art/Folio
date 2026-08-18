@@ -95,6 +95,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const formatAuthError = (err: any): string => {
     const msg = err?.message || '';
+    if (msg.includes('auth/operation-not-allowed') || msg.includes('operation-not-allowed')) {
+      return 'Email/Password Sign-In is not enabled yet in Firebase Console. Go to Firebase Console > Authentication > Sign-in method > Click "Email/Password" > Toggle "Enable" and click "Save".';
+    }
     if (msg.includes('auth/configuration-not-found') || msg.includes('configuration-not-found')) {
       return 'Firebase Authentication is not enabled yet in your Firebase Console. Please go to Firebase Console > Authentication > Click "Get Started" and Enable Email/Password.';
     }
