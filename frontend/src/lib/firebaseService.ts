@@ -27,6 +27,7 @@ export interface DbFolder {
   description?: string;
   subject_name?: string;
   parent_folder_id?: string | null;
+  is_starred?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -106,6 +107,7 @@ export const fetchFolders = async (): Promise<DbFolder[]> => {
         description: data.description || '',
         subject_name: data.subject_name || data.name || '',
         parent_folder_id: data.parent_folder_id || null,
+        is_starred: Boolean(data.is_starred),
         created_at: data.created_at || new Date().toISOString(),
         updated_at: data.updated_at || new Date().toISOString(),
       });
@@ -116,6 +118,20 @@ export const fetchFolders = async (): Promise<DbFolder[]> => {
   } catch (error) {
     console.error('Firestore fetchFolders error:', error);
     return [];
+  }
+};
+
+export const toggleFolderStarred = async (folderId: string, currentStarred: boolean): Promise<boolean> => {
+  try {
+    const folderRef = doc(db, 'folders', folderId);
+    await updateDoc(folderRef, {
+      is_starred: !currentStarred,
+      updated_at: new Date().toISOString(),
+    });
+    return !currentStarred;
+  } catch (error) {
+    console.error('Error toggling folder starred in Firestore:', error);
+    throw error;
   }
 };
 
