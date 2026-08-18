@@ -93,6 +93,26 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
 
+  const formatAuthError = (err: any): string => {
+    const msg = err?.message || '';
+    if (msg.includes('auth/api-key-not-valid') || msg.includes('api-key-not-valid')) {
+      return 'Firebase API Key is missing or invalid. Please check VITE_FIREBASE_API_KEY in Vercel Environment Variables and redeploy.';
+    }
+    if (msg.includes('auth/email-already-in-use')) {
+      return 'This email is already registered. Please switch to Sign In.';
+    }
+    if (msg.includes('auth/invalid-email')) {
+      return 'Please enter a valid email address.';
+    }
+    if (msg.includes('auth/weak-password')) {
+      return 'Password should be at least 6 characters.';
+    }
+    if (msg.includes('auth/user-not-found') || msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
+      return 'Invalid email or password. Please verify your credentials.';
+    }
+    return msg || 'Authentication error. Please try again.';
+  };
+
   const handleSignInSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -114,7 +134,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(false);
 
     if (error) {
-      setErrorMessage(error.message || 'Invalid credentials. Please try again.');
+      setErrorMessage(formatAuthError(error));
       return;
     }
 
@@ -164,7 +184,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(false);
 
     if (error) {
-      setErrorMessage(error.message || 'Registration failed. Please try again.');
+      setErrorMessage(formatAuthError(error));
       return;
     }
 
@@ -189,7 +209,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(false);
 
     if (error) {
-      setErrorMessage(error.message || 'Google sign in unavailable.');
+      setErrorMessage(formatAuthError(error));
       return;
     }
 
