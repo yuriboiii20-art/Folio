@@ -927,7 +927,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       const isPdf = fileNameToUse.toLowerCase().endsWith('.pdf');
       const localBlobUrl = URL.createObjectURL(selectedUploadFile);
       const fileSizeMb = (selectedUploadFile.size / (1024 * 1024)).toFixed(1);
-      const targetFolderId = selectedFolderId || folders[0]?.id || 'f-cn';
+      const targetFolderId = selectedFolderId || openedFolderId || folders[0]?.id || 'general';
 
       // Extract text preview snippet locally for text files
       let snippetText = `Document uploaded: ${fileNameToUse}. Stored in Firebase Cloud Storage.`;
