@@ -8,12 +8,12 @@
 [![Vite](https://img.shields.io/badge/Vite%208-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS_v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.2-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Firebase](https://img.shields.io/badge/Firebase_10-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini_AI-8E75C3?style=for-the-badge&logo=google-gemini&logoColor=white)](https://ai.google.dev/)
 
 <br/>
 
-**FOLIO** is an all-in-one, high-performance academic resource management platform and AI study studio engineered for students. Featuring an ultra-clean Slate-Gray design system, interactive 3D subject folders, visx animated activity charts, AI study intelligence (Google Gemini 2.5 & Local Ollama RAG), document recovery trash bin, and PostgreSQL persistence.
+**FOLIO** is an all-in-one, high-performance academic resource management platform and AI study studio engineered for students. Featuring an ultra-clean Slate-Gray design system, interactive 3D subject folders, visx animated activity charts, AI study intelligence (Google Gemini 2.5 & Local Ollama RAG), document recovery trash bin, and Firebase (Cloud Firestore & Storage) persistence.
 
 </div>
 
