@@ -436,8 +436,10 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
       if (dbFiles) {
         const mappedActive: AcademicFile[] = await Promise.all(dbFiles.map(async doc => {
           let downloadUrl = '';
-          if (doc.storage_path) {
-            downloadUrl = (await FirebaseService.getFileDownloadUrl(doc.storage_path)) || '';
+          if (doc.data_url) {
+            downloadUrl = doc.data_url;
+          } else if (doc.storage_path) {
+            downloadUrl = (await FirebaseService.getFileDownloadUrl(doc.storage_path, doc.data_url)) || '';
           }
           const sizeMb = doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
           const isPdf = doc.file_name ? doc.file_name.toLowerCase().endsWith('.pdf') : true;
@@ -945,7 +947,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       }
 
       let downloadUrl = localBlobUrl;
-      if (uploadedDbFile?.storage_path) {
+      if (uploadedDbFile?.data_url) {
+        downloadUrl = uploadedDbFile.data_url;
+      } else if (uploadedDbFile?.storage_path) {
         const signedUrl = await FirebaseService.getFileDownloadUrl(uploadedDbFile.storage_path);
         if (signedUrl) downloadUrl = signedUrl;
       }
