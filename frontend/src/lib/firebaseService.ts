@@ -60,8 +60,27 @@ export interface DbDeadline {
   created_at: string;
 }
 
-const getEffectiveUserId = (): string | null => {
-  return auth.currentUser ? auth.currentUser.uid : null;
+const getCleanUserName = (fullName?: string | null, email?: string | null, uid?: string | null): string => {
+  if (fullName && fullName.trim()) {
+    return fullName.trim().replace(/[\/\#\$\[\]\.]/g, '_').replace(/\s+/g, '_');
+  }
+  if (email && email.includes('@')) {
+    return email.split('@')[0].replace(/[\/\#\$\[\]\.]/g, '_');
+  }
+  return uid || `user_${Date.now()}`;
+};
+
+const getEffectiveUserIds = (): string[] => {
+  if (!auth.currentUser) return [];
+  const list = [auth.currentUser.uid];
+  const nameId = getCleanUserName(auth.currentUser.displayName, auth.currentUser.email, auth.currentUser.uid);
+  if (!list.includes(nameId)) list.push(nameId);
+  return list;
+};
+
+const getPrimaryUserIdentifier = (): string | null => {
+  if (!auth.currentUser) return null;
+  return getCleanUserName(auth.currentUser.displayName, auth.currentUser.email, auth.currentUser.uid);
 };
 
 // ============================================================================
@@ -69,12 +88,12 @@ const getEffectiveUserId = (): string | null => {
 // ============================================================================
 
 export const fetchFolders = async (): Promise<DbFolder[]> => {
-  const userId = getEffectiveUserId();
-  if (!userId) return [];
+  const userIds = getEffectiveUserIds();
+  if (userIds.length === 0) return [];
 
   try {
     const foldersRef = collection(db, 'folders');
-    const q = query(foldersRef, where('user_id', '==', userId));
+    const q = query(foldersRef, where('user_id', 'in', userIds));
     const snapshot = await getDocs(q);
 
     const folders: DbFolder[] = [];
@@ -106,7 +125,7 @@ export const createFolder = async (
   subjectName?: string,
   parentFolderId?: string | null
 ): Promise<DbFolder | null> => {
-  const userId = getEffectiveUserId();
+  const userId = getPrimaryUserIdentifier();
   if (!userId) throw new Error('User must be authenticated to create a folder');
 
   const newFolderData = {
@@ -155,7 +174,7 @@ export const updateFolder = async (
 };
 
 export const deleteFolder = async (folderId: string): Promise<boolean> => {
-  const userId = getEffectiveUserId();
+  const userId = getPrimaryUserIdentifier();
   if (!userId) throw new Error('User must be authenticated');
 
   try {
@@ -193,21 +212,21 @@ export const deleteFolder = async (folderId: string): Promise<boolean> => {
 // ============================================================================
 
 export const fetchFiles = async (folderId?: string): Promise<DbFile[]> => {
-  const userId = getEffectiveUserId();
-  if (!userId) return [];
+  const userIds = getEffectiveUserIds();
+  if (userIds.length === 0) return [];
 
   try {
     const filesRef = collection(db, 'files');
     let q = query(
       filesRef,
-      where('user_id', '==', userId),
+      where('user_id', 'in', userIds),
       where('trashed', '==', false)
     );
 
     if (folderId) {
       q = query(
         filesRef,
-        where('user_id', '==', userId),
+        where('user_id', 'in', userIds),
         where('folder_id', '==', folderId),
         where('trashed', '==', false)
       );
@@ -246,14 +265,14 @@ export const fetchFiles = async (folderId?: string): Promise<DbFile[]> => {
 };
 
 export const fetchTrashedFiles = async (): Promise<DbFile[]> => {
-  const userId = getEffectiveUserId();
-  if (!userId) return [];
+  const userIds = getEffectiveUserIds();
+  if (userIds.length === 0) return [];
 
   try {
     const filesRef = collection(db, 'files');
     const q = query(
       filesRef,
-      where('user_id', '==', userId),
+      where('user_id', 'in', userIds),
       where('trashed', '==', true)
     );
 
@@ -303,7 +322,7 @@ export const uploadFile = async (
   folderId?: string | null,
   extractedSnippet?: string
 ): Promise<DbFile | null> => {
-  const userId = getEffectiveUserId();
+  const userId = getPrimaryUserIdentifier();
   if (!userId) throw new Error('User must be authenticated to upload files');
 
   const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
@@ -431,14 +450,14 @@ export const permanentlyDeleteFile = async (fileId: string, storagePath?: string
 };
 
 export const emptyTrash = async (): Promise<boolean> => {
-  const userId = getEffectiveUserId();
-  if (!userId) return false;
+  const userIds = getEffectiveUserIds();
+  if (userIds.length === 0) return false;
 
   try {
     const filesRef = collection(db, 'files');
     const q = query(
       filesRef,
-      where('user_id', '==', userId),
+      where('user_id', 'in', userIds),
       where('trashed', '==', true)
     );
     const snapshot = await getDocs(q);
@@ -495,12 +514,12 @@ export const renameFile = async (fileId: string, newFileName: string): Promise<b
 // ============================================================================
 
 export const fetchDeadlines = async (): Promise<DbDeadline[]> => {
-  const userId = getEffectiveUserId();
-  if (!userId) return [];
+  const userIds = getEffectiveUserIds();
+  if (userIds.length === 0) return [];
 
   try {
     const deadlinesRef = collection(db, 'deadlines');
-    const q = query(deadlinesRef, where('user_id', '==', userId));
+    const q = query(deadlinesRef, where('user_id', 'in', userIds));
     const snapshot = await getDocs(q);
 
     const deadlines: DbDeadline[] = [];
@@ -531,7 +550,7 @@ export const createDeadline = async (
   dateStr: string,
   subjectColor?: string
 ): Promise<DbDeadline | null> => {
-  const userId = getEffectiveUserId();
+  const userId = getPrimaryUserIdentifier();
   if (!userId) throw new Error('User must be authenticated');
 
   const newDeadline = {

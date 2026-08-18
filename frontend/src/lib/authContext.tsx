@@ -24,6 +24,7 @@ export interface UserProfile {
   branch?: string;
   studyStreak?: number;
   createdAt?: string;
+  auth_uid?: string;
 }
 
 export type AuthUser = {
@@ -56,6 +57,16 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
 }
 
+export const getCleanUserName = (fullName?: string | null, email?: string | null, uid?: string | null): string => {
+  if (fullName && fullName.trim()) {
+    return fullName.trim().replace(/[\/\#\$\[\]\.]/g, '_').replace(/\s+/g, '_');
+  }
+  if (email && email.includes('@')) {
+    return email.split('@')[0].replace(/[\/\#\$\[\]\.]/g, '_');
+  }
+  return uid || `user_${Date.now()}`;
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -65,7 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(false);
 
-  // Fetch or initialize user profile document in Firestore (users collection)
+  // Fetch or initialize user profile document in Firestore (stored under User Name document ID)
   const fetchOrInitFirestoreProfile = async (
     userId: string,
     userEmail?: string | null,
@@ -73,14 +84,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     photoURL?: string | null,
     extraMeta?: { usn?: string; branch?: string }
   ): Promise<UserProfile> => {
+    const userDocId = getCleanUserName(displayName, userEmail, userId);
+
     try {
-      const userDocRef = doc(db, 'users', userId);
+      // 1. Check document named by User's Name
+      const userDocRef = doc(db, 'users', userDocId);
       const userSnap = await getDoc(userDocRef);
 
       if (userSnap.exists()) {
         const data = userSnap.data();
         return {
-          id: userId,
+          id: userDocId,
+          auth_uid: userId,
           fullName: data.fullName || data.full_name || displayName || 'Scholar Student',
           email: data.email || userEmail || '',
           avatarUrl: data.avatarUrl || data.avatar_url || photoURL || '',
@@ -88,15 +103,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           usn: data.usn || extraMeta?.usn || '1FA23CS042',
           sem: data.sem || '6th Semester',
           branch: data.branch || extraMeta?.branch || 'Computer Science & Engineering',
-          studyStreak: data.studyStreak !== undefined ? data.studyStreak : 12,
+          studyStreak: data.studyStreak !== undefined ? data.studyStreak : 15,
           createdAt: data.createdAt || data.created_at || new Date().toISOString()
         };
       }
 
-      // Create new profile record in Firestore
+      // 2. Also check if old document existed with raw uid
+      if (userDocId !== userId) {
+        const oldDocRef = doc(db, 'users', userId);
+        const oldSnap = await getDoc(oldDocRef);
+        if (oldSnap.exists()) {
+          const oldData = oldSnap.data();
+          const migratedProfile: UserProfile = {
+            id: userDocId,
+            auth_uid: userId,
+            fullName: oldData.fullName || oldData.full_name || displayName || 'Scholar Student',
+            email: oldData.email || userEmail || '',
+            avatarUrl: oldData.avatarUrl || oldData.avatar_url || photoURL || '',
+            role: oldData.role || 'Academic Scholar',
+            usn: oldData.usn || extraMeta?.usn || '1FA23CS042',
+            sem: oldData.sem || '6th Semester',
+            branch: oldData.branch || extraMeta?.branch || 'Computer Science & Engineering',
+            studyStreak: oldData.studyStreak !== undefined ? oldData.studyStreak : 15,
+            createdAt: oldData.createdAt || oldData.created_at || new Date().toISOString()
+          };
+          // Save with clean user name document ID
+          await setDoc(userDocRef, migratedProfile, { merge: true });
+          return migratedProfile;
+        }
+      }
+
+      // 3. Create new profile record in Firestore under User's Name
       const fallbackName = displayName || (userEmail ? userEmail.split('@')[0] : 'Scholar Student');
       const newFirestoreProfile: UserProfile = {
-        id: userId,
+        id: userDocId,
+        auth_uid: userId,
         fullName: fallbackName,
         email: userEmail || '',
         avatarUrl: photoURL || '',
@@ -104,7 +145,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         usn: extraMeta?.usn || '1FA23CS042',
         sem: '6th Semester',
         branch: extraMeta?.branch || 'Computer Science & Engineering',
-        studyStreak: 12,
+        studyStreak: 15,
         createdAt: new Date().toISOString()
       };
 
@@ -114,7 +155,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.warn('Firestore profile fetch/init error:', e);
       const fallbackName = displayName || (userEmail ? userEmail.split('@')[0] : 'Scholar Student');
       return {
-        id: userId,
+        id: userDocId,
+        auth_uid: userId,
         fullName: fallbackName,
         email: userEmail || '',
         avatarUrl: photoURL || '',
@@ -122,7 +164,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         usn: extraMeta?.usn || '1FA23CS042',
         sem: '6th Semester',
         branch: extraMeta?.branch || 'Computer Science & Engineering',
-        studyStreak: 12,
+        studyStreak: 15,
         createdAt: new Date().toISOString()
       };
     }
@@ -144,9 +186,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Listen directly to Firebase Auth lifecycle
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
+        const cleanName = getCleanUserName(firebaseUser.displayName, firebaseUser.email, firebaseUser.uid);
         const authUserObj: AuthUser = {
           uid: firebaseUser.uid,
-          id: firebaseUser.uid,
+          id: cleanName,
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
@@ -191,8 +234,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await firebaseUpdateAuthProfile(createdUser, { displayName: fullName });
       }
 
+      const cleanName = getCleanUserName(fullName, email, createdUser.uid);
+
       const newFirestoreProfile: UserProfile = {
-        id: createdUser.uid,
+        id: cleanName,
+        auth_uid: createdUser.uid,
         fullName: fullName.trim() || email.split('@')[0],
         email: createdUser.email || email,
         avatarUrl: '',
@@ -200,16 +246,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         usn: usn?.trim() || '1FA23CS042',
         sem: '6th Semester',
         branch: branch?.trim() || 'Computer Science & Engineering',
-        studyStreak: 12,
+        studyStreak: 15,
         createdAt: new Date().toISOString()
       };
 
-      // Persist profile strictly to Firestore database
-      await setDoc(doc(db, 'users', createdUser.uid), newFirestoreProfile, { merge: true });
+      // Persist profile in Firestore database under the User's Name document ID
+      await setDoc(doc(db, 'users', cleanName), newFirestoreProfile, { merge: true });
 
       const authUserObj: AuthUser = {
         uid: createdUser.uid,
-        id: createdUser.uid,
+        id: cleanName,
         email: createdUser.email,
         displayName: fullName,
         photoURL: null,
@@ -239,9 +285,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         signedInUser.photoURL
       );
 
+      const cleanName = getCleanUserName(signedInUser.displayName || p.fullName, signedInUser.email, signedInUser.uid);
+
       const authUserObj: AuthUser = {
         uid: signedInUser.uid,
-        id: signedInUser.uid,
+        id: cleanName,
         email: signedInUser.email,
         displayName: signedInUser.displayName || p.fullName,
         photoURL: signedInUser.photoURL || p.avatarUrl || null,
@@ -264,8 +312,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await signInWithPopup(auth, googleProvider);
       const googleUser = result.user;
 
+      const cleanName = getCleanUserName(googleUser.displayName, googleUser.email, googleUser.uid);
+
       const googleProfile: UserProfile = {
-        id: googleUser.uid,
+        id: cleanName,
+        auth_uid: googleUser.uid,
         fullName: googleUser.displayName || 'Google Scholar',
         email: googleUser.email || '',
         avatarUrl: googleUser.photoURL || '',
@@ -277,12 +328,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         createdAt: new Date().toISOString()
       };
 
-      // Persist profile in Firestore database
-      await setDoc(doc(db, 'users', googleUser.uid), googleProfile, { merge: true });
+      // Persist profile in Firestore database under the User's Name document ID
+      await setDoc(doc(db, 'users', cleanName), googleProfile, { merge: true });
 
       const authUserObj: AuthUser = {
         uid: googleUser.uid,
-        id: googleUser.uid,
+        id: cleanName,
         email: googleUser.email,
         displayName: googleUser.displayName,
         photoURL: googleUser.photoURL,
@@ -340,15 +391,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!auth.currentUser) return { error: new Error('User not logged in') };
 
     try {
-      const uid = auth.currentUser.uid;
-      const userRef = doc(db, 'users', uid);
+      const userDocId = getCleanUserName(
+        updates.fullName || profile?.fullName || auth.currentUser.displayName,
+        auth.currentUser.email,
+        auth.currentUser.uid
+      );
+      
+      const userRef = doc(db, 'users', userDocId);
       
       const firestoreUpdates: any = {
         ...updates,
         updatedAt: new Date().toISOString()
       };
 
-      await updateDoc(userRef, firestoreUpdates);
+      await setDoc(userRef, firestoreUpdates, { merge: true });
 
       if (updates.fullName || updates.avatarUrl) {
         await firebaseUpdateAuthProfile(auth.currentUser, {
