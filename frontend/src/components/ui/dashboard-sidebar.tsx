@@ -400,13 +400,30 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
   const fetchBackendDocuments = async () => {
     try {
       // 1. Fetch Firebase Folders
-      const dbFolders = await FirebaseService.fetchFolders();
+      let dbFolders = await FirebaseService.fetchFolders();
+      
+      // If user has no folders in Firestore yet, seed starter folders directly into Firestore
+      if (!dbFolders || dbFolders.length === 0) {
+        const starterSubjects = [
+          { name: 'Database Management Systems', code: 'CS-DBMS', desc: 'Relational Schema, SQL & Normalization' },
+          { name: 'Operating Systems', code: 'CS-OS', desc: 'CPU Scheduling, Virtual Memory & Concurrency' },
+          { name: 'Computer Networks', code: 'CS-NET', desc: 'TCP/IP, Routing Protocols & Sockets' },
+          { name: 'Mathematics & Algorithms', code: 'CS-MATH', desc: 'Linear Algebra, Probability & Graph Theory' },
+        ];
+        for (const s of starterSubjects) {
+          try {
+            await FirebaseService.createFolder(s.name, s.desc, s.code);
+          } catch (e) { }
+        }
+        dbFolders = await FirebaseService.fetchFolders();
+      }
+
       if (dbFolders && dbFolders.length > 0) {
         const colors = ['#1e293b', '#334155', '#475569', '#64748b', '#0f172a'];
         setFolders(dbFolders.map((f, idx) => ({
           id: f.id,
           name: f.name,
-          code: f.description?.substring(0, 8) || 'SUBJ',
+          code: f.subject_name || f.description?.substring(0, 8) || 'SUBJ',
           description: f.description || 'Academic subject resource folder',
           fileCount: 0,
           colorHex: colors[idx % colors.length],
