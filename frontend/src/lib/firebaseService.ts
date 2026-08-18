@@ -362,12 +362,16 @@ export const uploadFile = async (
     newFileRecord.data_url = fileDataUrl;
   }
 
-  // 1. Try uploading to Firebase Storage if active
+  // 1. Try uploading to Firebase Storage if active with a fast 1s timeout race
   try {
     const storageReference = ref(storage, storagePath);
-    await uploadBytes(storageReference, file);
+    const storagePromise = uploadBytes(storageReference, file);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Storage timeout')), 1000)
+    );
+    await Promise.race([storagePromise, timeoutPromise]);
   } catch (storageErr) {
-    console.warn('Firebase Cloud Storage note (using Cloud Firestore database persistence):', storageErr);
+    // Fast fallback to Cloud Firestore database persistence
   }
 
   // 2. Save document record in Cloud Firestore database

@@ -904,7 +904,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
   // Upload File via Browser File Picker (Firebase Cloud Storage & Firestore)
   const [isUploading, setIsUploading] = useState(false);
 
+  const handleCloseUploadModal = () => {
+    setIsUploading(false);
+    setSelectedUploadFile(null);
+    setIsUploadModalOpen(false);
+  };
+
   const handleUploadFileSubmit = async () => {
+    if (isUploading) return;
     if (!selectedUploadFile) {
       showNotification("NO FILE SELECTED", "Please browse and select a document from your device first.", "warning");
       return;
@@ -3189,7 +3196,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 <Upload className="w-4 h-4 text-slate-700" />
                 <span>Upload Academic Notes</span>
               </h3>
-              <button onClick={() => setIsUploadModalOpen(false)} className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100">
+              <button onClick={handleCloseUploadModal} className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -3237,7 +3244,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
             <div className="mt-6 flex justify-end gap-2">
               <button
-                onClick={() => setIsUploadModalOpen(false)}
+                onClick={handleCloseUploadModal}
                 disabled={isUploading}
                 className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
               >
