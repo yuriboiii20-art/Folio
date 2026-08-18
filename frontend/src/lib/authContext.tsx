@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
+import {
+  User as FirebaseUser,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  sendPasswordResetEmail,
+  updatePassword as firebaseUpdatePassword,
+  onAuthStateChanged,
+  updateProfile as firebaseUpdateAuthProfile
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { auth, db, googleProvider } from './firebaseConfig';
 
 export interface UserProfile {
   id: string;
@@ -15,18 +26,32 @@ export interface UserProfile {
   createdAt?: string;
 }
 
+export type AuthUser = {
+  uid: string;
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  user_metadata?: {
+    full_name?: string;
+    avatar_url?: string;
+    usn?: string;
+    branch?: string;
+  };
+};
+
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  session: any | null;
   profile: UserProfile | null;
   loading: boolean;
   isPasswordRecovery: boolean;
-  signUp: (email: string, password: string, fullName: string, usn?: string, branch?: string) => Promise<{ error: AuthError | Error | null; needsEmailVerification?: boolean }>;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
-  signInWithGoogle: () => Promise<{ error: AuthError | Error | null }>;
+  signUp: (email: string, password: string, fullName: string, usn?: string, branch?: string) => Promise<{ error: Error | null; needsEmailVerification?: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  resetPasswordForEmail: (email: string) => Promise<{ error: AuthError | Error | null }>;
-  updatePassword: (newPassword: string) => Promise<{ error: AuthError | Error | null }>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
 }
@@ -34,349 +59,308 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(false);
 
-  const fetchProfile = async (userId: string, userEmail?: string, metadata?: any): Promise<UserProfile> => {
+  // Fetch or initialize user profile document in Firestore (users collection)
+  const fetchOrInitFirestoreProfile = async (
+    userId: string,
+    userEmail?: string | null,
+    displayName?: string | null,
+    photoURL?: string | null,
+    extraMeta?: { usn?: string; branch?: string }
+  ): Promise<UserProfile> => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
+      const userDocRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userDocRef);
 
-      if (data && !error) {
+      if (userSnap.exists()) {
+        const data = userSnap.data();
         return {
-          id: data.id,
-          fullName: data.full_name || 'Scholar Student',
+          id: userId,
+          fullName: data.fullName || data.full_name || displayName || 'Scholar Student',
           email: data.email || userEmail || '',
-          avatarUrl: data.avatar_url || '',
-          role: 'Academic Scholar',
-          usn: metadata?.usn || '1FA23CS042',
-          sem: '6th Semester',
-          branch: metadata?.branch || 'Computer Science & Engineering',
-          studyStreak: 12,
-          createdAt: data.created_at
+          avatarUrl: data.avatarUrl || data.avatar_url || photoURL || '',
+          role: data.role || 'Academic Scholar',
+          usn: data.usn || extraMeta?.usn || '1FA23CS042',
+          sem: data.sem || '6th Semester',
+          branch: data.branch || extraMeta?.branch || 'Computer Science & Engineering',
+          studyStreak: data.studyStreak !== undefined ? data.studyStreak : 12,
+          createdAt: data.createdAt || data.created_at || new Date().toISOString()
         };
       }
-    } catch (e) {
-      console.warn('Profile fetch note:', e);
-    }
 
-    const defaultName = metadata?.full_name || metadata?.name || userEmail?.split('@')[0] || 'Scholar User';
-    return {
-      id: userId,
-      fullName: defaultName,
-      email: userEmail || '',
-      avatarUrl: metadata?.avatar_url || '',
-      role: 'Academic Scholar',
-      usn: metadata?.usn || '1FA23CS042',
-      sem: '6th Semester',
-      branch: metadata?.branch || 'Computer Science & Engineering',
-      studyStreak: 12,
-    };
+      // Create new profile record in Firestore
+      const fallbackName = displayName || (userEmail ? userEmail.split('@')[0] : 'Scholar Student');
+      const newFirestoreProfile: UserProfile = {
+        id: userId,
+        fullName: fallbackName,
+        email: userEmail || '',
+        avatarUrl: photoURL || '',
+        role: 'Academic Scholar',
+        usn: extraMeta?.usn || '1FA23CS042',
+        sem: '6th Semester',
+        branch: extraMeta?.branch || 'Computer Science & Engineering',
+        studyStreak: 12,
+        createdAt: new Date().toISOString()
+      };
+
+      await setDoc(userDocRef, newFirestoreProfile, { merge: true });
+      return newFirestoreProfile;
+    } catch (e) {
+      console.warn('Firestore profile fetch/init error:', e);
+      const fallbackName = displayName || (userEmail ? userEmail.split('@')[0] : 'Scholar Student');
+      return {
+        id: userId,
+        fullName: fallbackName,
+        email: userEmail || '',
+        avatarUrl: photoURL || '',
+        role: 'Academic Scholar',
+        usn: extraMeta?.usn || '1FA23CS042',
+        sem: '6th Semester',
+        branch: extraMeta?.branch || 'Computer Science & Engineering',
+        studyStreak: 12,
+        createdAt: new Date().toISOString()
+      };
+    }
   };
 
   const refreshProfile = async () => {
-    if (user) {
-      const p = await fetchProfile(user.id, user.email, user.user_metadata);
+    if (auth.currentUser) {
+      const p = await fetchOrInitFirestoreProfile(
+        auth.currentUser.uid,
+        auth.currentUser.email,
+        auth.currentUser.displayName,
+        auth.currentUser.photoURL
+      );
       setProfile(p);
     }
   };
 
   useEffect(() => {
-    // 1. Check current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const p = await fetchProfile(session.user.id, session.user.email, session.user.user_metadata);
+    // Listen directly to Firebase Auth lifecycle
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        const authUserObj: AuthUser = {
+          uid: firebaseUser.uid,
+          id: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+          user_metadata: {
+            full_name: firebaseUser.displayName || undefined,
+            avatar_url: firebaseUser.photoURL || undefined
+          }
+        };
+
+        setUser(authUserObj);
+        setSession({ user: authUserObj });
+        const p = await fetchOrInitFirestoreProfile(
+          firebaseUser.uid,
+          firebaseUser.email,
+          firebaseUser.displayName,
+          firebaseUser.photoURL
+        );
         setProfile(p);
-      }
-      setLoading(false);
-    });
-
-    // 2. Listen to auth state changes (sign in, sign out, password recovery)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
-      } else if (event === 'SIGNED_OUT') {
+      } else {
+        setUser(null);
+        setSession(null);
         setProfile(null);
-        setIsPasswordRecovery(false);
-      } else if (session?.user) {
-        const p = await fetchProfile(session.user.id, session.user.email, session.user.user_metadata);
-        setProfile(p);
       }
-
       setLoading(false);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, usn?: string, branch?: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    usn?: string,
+    branch?: string
+  ) => {
     try {
-      let createdUser: any = null;
-      let createdSession: any = null;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const createdUser = userCredential.user;
 
-      // 1. Try Supabase Auth
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-              usn: usn || '',
-              branch: branch || 'Computer Science & Engineering',
-            }
-          }
-        });
-        if (!error && data.user) {
-          createdUser = data.user;
-          createdSession = data.session;
-        }
-      } catch (e) { }
-
-      // 2. Also register in Backend Supabase Database
-      try {
-        const beRes = await fetch('http://localhost:8080/api/v1/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fullName,
-            email,
-            password
-          })
-        });
-        if (beRes.ok) {
-          const beData = await beRes.json();
-          if (beData.token) {
-            localStorage.setItem('folio_jwt_token', beData.token);
-          }
-          if (!createdUser) {
-            createdUser = {
-              id: beData.userId ? String(beData.userId) : `usr_${Date.now()}`,
-              email: beData.email || email,
-              user_metadata: { full_name: fullName, usn, branch }
-            };
-          }
-        }
-      } catch (beErr) { }
-
-      if (!createdUser) {
-        createdUser = {
-          id: `usr_${Date.now()}`,
-          email,
-          user_metadata: { full_name: fullName, usn, branch }
-        };
+      if (fullName) {
+        await firebaseUpdateAuthProfile(createdUser, { displayName: fullName });
       }
 
-      // 3. Set user, profile & session immediately so user is logged in
-      setUser(createdUser);
-      setSession(createdSession);
-      const p: UserProfile = {
-        id: createdUser.id,
-        fullName: fullName || email.split('@')[0],
-        email,
+      const newFirestoreProfile: UserProfile = {
+        id: createdUser.uid,
+        fullName: fullName.trim() || email.split('@')[0],
+        email: createdUser.email || email,
         avatarUrl: '',
         role: 'Academic Scholar',
-        usn: usn || '1FA23CS042',
+        usn: usn?.trim() || '1FA23CS042',
         sem: '6th Semester',
-        branch: branch || 'Computer Science & Engineering',
-        studyStreak: 12
+        branch: branch?.trim() || 'Computer Science & Engineering',
+        studyStreak: 12,
+        createdAt: new Date().toISOString()
       };
-      setProfile(p);
-      localStorage.setItem('folio_is_authenticated', 'true');
-      localStorage.setItem('folio_user_profile', JSON.stringify(p));
+
+      // Persist profile strictly to Firestore database
+      await setDoc(doc(db, 'users', createdUser.uid), newFirestoreProfile, { merge: true });
+
+      const authUserObj: AuthUser = {
+        uid: createdUser.uid,
+        id: createdUser.uid,
+        email: createdUser.email,
+        displayName: fullName,
+        photoURL: null,
+        user_metadata: { full_name: fullName, usn, branch }
+      };
+
+      setUser(authUserObj);
+      setSession({ user: authUserObj });
+      setProfile(newFirestoreProfile);
 
       return { error: null, needsEmailVerification: false };
     } catch (err: any) {
+      console.error('Firebase signUp error:', err);
       return { error: err };
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      let authUser: any = null;
-      let authSession: any = null;
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const signedInUser = credential.user;
 
-      // 1. Try Supabase Auth
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (!error && data.user) {
-          authUser = data.user;
-          authSession = data.session;
-        }
-      } catch (e) { }
+      const p = await fetchOrInitFirestoreProfile(
+        signedInUser.uid,
+        signedInUser.email,
+        signedInUser.displayName,
+        signedInUser.photoURL
+      );
 
-      // 2. Try Backend Auth if Supabase returned unconfirmed or error
-      if (!authUser) {
-        try {
-          const beRes = await fetch('http://localhost:8080/api/v1/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-          });
-          if (beRes.ok) {
-            const beData = await beRes.json();
-            if (beData.token) {
-              localStorage.setItem('folio_jwt_token', beData.token);
-            }
-            authUser = {
-              id: beData.userId ? String(beData.userId) : `usr_${Date.now()}`,
-              email: beData.email || email,
-              user_metadata: { full_name: beData.fullName }
-            };
-          }
-        } catch (beErr) { }
-      }
-
-      if (!authUser) {
-        // Direct seamless auth for standard credentials
-        const usernamePart = email.split('@')[0];
-        const formattedName = usernamePart
-          .replace(/[._]/g, ' ')
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-        authUser = {
-          id: `usr_${Date.now()}`,
-          email,
-          user_metadata: { full_name: formattedName }
-        };
-      }
-
-      setUser(authUser);
-      setSession(authSession);
-      const p = await fetchProfile(authUser.id, authUser.email, authUser.user_metadata);
-      setProfile(p);
-      localStorage.setItem('folio_is_authenticated', 'true');
-      localStorage.setItem('folio_user_profile', JSON.stringify(p));
-
-      return { error: null };
-    } catch (err: any) {
-      return { error: err };
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      localStorage.removeItem('folio_jwt_token');
-      localStorage.removeItem('folio_user_profile');
-      localStorage.setItem('folio_is_authenticated', 'false');
-    } catch (e) {
-      console.error('Sign out error:', e);
-    }
-  };
-
-  const resetPasswordForEmail = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/#reset-password`,
-      });
-      return { error };
-    } catch (err: any) {
-      return { error: err };
-    }
-  };
-
-  const updatePassword = async (newPassword: string) => {
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-      if (!error) {
-        setIsPasswordRecovery(false);
-      }
-      return { error };
-    } catch (err: any) {
-      return { error: err };
-    }
-  };
-
-  const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) return { error: new Error('User not logged in') };
-
-    try {
-      const dbUpdates: any = {
-        updated_at: new Date().toISOString()
+      const authUserObj: AuthUser = {
+        uid: signedInUser.uid,
+        id: signedInUser.uid,
+        email: signedInUser.email,
+        displayName: signedInUser.displayName || p.fullName,
+        photoURL: signedInUser.photoURL || p.avatarUrl || null,
+        user_metadata: { full_name: p.fullName }
       };
-      if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
-      if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(dbUpdates)
-        .eq('id', user.id);
+      setUser(authUserObj);
+      setSession({ user: authUserObj });
+      setProfile(p);
 
-      if (error) return { error };
-
-      setProfile(prev => prev ? { ...prev, ...updates } : null);
       return { error: null };
     } catch (err: any) {
+      console.error('Firebase signIn error:', err);
       return { error: err };
     }
   };
 
   const signInWithGoogle = async () => {
     try {
-      // 1. Create or retrieve Google Scholar profile
-      const googleUser = {
-        id: `usr_google_${Date.now()}`,
-        email: 'scholar.google@folio.edu',
-        user_metadata: {
-          full_name: 'Alex Johnson (Google Scholar)',
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-          branch: 'Computer Science & Engineering',
-          usn: '1FA23CS099'
-        }
-      };
+      const result = await signInWithPopup(auth, googleProvider);
+      const googleUser = result.user;
 
-      // 2. Sync to Supabase Profiles table if available
-      try {
-        await supabase.from('profiles').upsert({
-          id: googleUser.id,
-          full_name: 'Alex Johnson (Google Scholar)',
-          email: 'scholar.google@folio.edu',
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-      } catch (e) { }
-
-      // 3. Set active user & session
-      setUser(googleUser as any);
-      const p: UserProfile = {
-        id: googleUser.id,
-        fullName: 'Alex Johnson (Google Scholar)',
-        email: 'scholar.google@folio.edu',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      const googleProfile: UserProfile = {
+        id: googleUser.uid,
+        fullName: googleUser.displayName || 'Google Scholar',
+        email: googleUser.email || '',
+        avatarUrl: googleUser.photoURL || '',
         role: 'Google Verified Scholar',
         usn: '1FA23CS099',
         sem: '6th Semester',
         branch: 'Computer Science & Engineering',
-        studyStreak: 15
+        studyStreak: 15,
+        createdAt: new Date().toISOString()
       };
-      setProfile(p);
-      localStorage.setItem('folio_is_authenticated', 'true');
-      localStorage.setItem('folio_user_profile', JSON.stringify(p));
+
+      // Persist profile in Firestore database
+      await setDoc(doc(db, 'users', googleUser.uid), googleProfile, { merge: true });
+
+      const authUserObj: AuthUser = {
+        uid: googleUser.uid,
+        id: googleUser.uid,
+        email: googleUser.email,
+        displayName: googleUser.displayName,
+        photoURL: googleUser.photoURL,
+        user_metadata: { full_name: googleUser.displayName || undefined, avatar_url: googleUser.photoURL || undefined }
+      };
+
+      setUser(authUserObj);
+      setSession({ user: authUserObj });
+      setProfile(googleProfile);
 
       return { error: null };
     } catch (err: any) {
+      console.error('Google Sign-in error:', err);
+      return { error: err };
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {
+      console.warn('Firebase signOut error:', e);
+    }
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+  };
+
+  const resetPasswordForEmail = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Firebase sendPasswordResetEmail error:', err);
+      return { error: err };
+    }
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    try {
+      if (auth.currentUser) {
+        await firebaseUpdatePassword(auth.currentUser, newPassword);
+      } else {
+        throw new Error('No user is currently authenticated.');
+      }
+      setIsPasswordRecovery(false);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Firebase updatePassword error:', err);
+      return { error: err };
+    }
+  };
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!auth.currentUser) return { error: new Error('User not logged in') };
+
+    try {
+      const uid = auth.currentUser.uid;
+      const userRef = doc(db, 'users', uid);
+      
+      const firestoreUpdates: any = {
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+
+      await updateDoc(userRef, firestoreUpdates);
+
+      if (updates.fullName || updates.avatarUrl) {
+        await firebaseUpdateAuthProfile(auth.currentUser, {
+          displayName: updates.fullName || auth.currentUser.displayName,
+          photoURL: updates.avatarUrl || auth.currentUser.photoURL
+        });
+      }
+
+      setProfile(prev => prev ? { ...prev, ...updates } : null);
+      return { error: null };
+    } catch (err: any) {
+      console.error('Firebase updateProfile in Firestore error:', err);
       return { error: err };
     }
   };

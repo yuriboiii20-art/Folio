@@ -277,7 +277,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 <ShieldCheck className="size-4" />
               </div>
               <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-white">Supabase Row Level Security</h4>
+                <h4 className="text-xs font-bold text-white">Firebase Cloud Security Rules</h4>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
                   100% strict user data isolation. Only you can view, upload, and access your private files.
                 </p>

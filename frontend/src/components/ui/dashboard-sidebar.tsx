@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SearchInput } from './search-input';
 import FolderCard from './folder';
 import { GoogleGenAI } from '@google/genai';
-import * as SupabaseService from '../../lib/supabaseService';
+import * as FirebaseService from '../../lib/firebaseService';
 import { useAuth } from '../../lib/authContext';
 import {
   BarChart as VisxBarChart,
@@ -141,20 +141,7 @@ export interface DesktopWebAppProps {
 
 export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppProps = {}) {
   const { updateProfile: authUpdateProfile, updatePassword: authUpdatePassword } = useAuth();
-  const [activeTab, setActiveTab] = useState(() => {
-    try {
-      const savedTab = localStorage.getItem('folio_active_tab');
-      return savedTab || 'dashboard';
-    } catch (e) {
-      return 'dashboard';
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('folio_active_tab', activeTab);
-    } catch (e) { }
-  }, [activeTab]);
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -409,11 +396,11 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch Active & Trashed Documents from Supabase Cloud
+  // Fetch Active & Trashed Documents from Firebase Cloud
   const fetchBackendDocuments = async () => {
     try {
-      // 1. Fetch Supabase Folders
-      const dbFolders = await SupabaseService.fetchFolders();
+      // 1. Fetch Firebase Folders
+      const dbFolders = await FirebaseService.fetchFolders();
       if (dbFolders && dbFolders.length > 0) {
         const colors = ['#1e293b', '#334155', '#475569', '#64748b', '#0f172a'];
         setFolders(dbFolders.map((f, idx) => ({
@@ -427,13 +414,13 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
         })));
       }
 
-      // 2. Fetch Supabase Active Files
-      const dbFiles = await SupabaseService.fetchFiles();
+      // 2. Fetch Firebase Active Files
+      const dbFiles = await FirebaseService.fetchFiles();
       if (dbFiles) {
         const mappedActive: AcademicFile[] = await Promise.all(dbFiles.map(async doc => {
           let downloadUrl = '';
           if (doc.storage_path) {
-            downloadUrl = (await SupabaseService.getFileDownloadUrl(doc.storage_path)) || '';
+            downloadUrl = (await FirebaseService.getFileDownloadUrl(doc.storage_path)) || '';
           }
           const sizeMb = doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
           const isPdf = doc.file_name ? doc.file_name.toLowerCase().endsWith('.pdf') : true;
@@ -442,7 +429,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
             id: doc.id,
             title: doc.file_name,
             folderId: doc.folder_id || 'f-cn',
-            source: 'Supabase Cloud',
+            source: 'Firebase Cloud',
             size: sizeMb,
             sizeBytes: doc.file_size || 1048576,
             date: doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Recently',
@@ -461,8 +448,8 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
         })));
       }
 
-      // 3. Fetch Supabase Trashed Files
-      const dbTrashed = await SupabaseService.fetchTrashedFiles();
+      // 3. Fetch Firebase Trashed Files
+      const dbTrashed = await FirebaseService.fetchTrashedFiles();
       if (dbTrashed) {
         const mappedTrashed: AcademicFile[] = dbTrashed.map(doc => {
           const sizeMb = doc.file_size ? `${(doc.file_size / (1024 * 1024)).toFixed(1)} MB` : '1.0 MB';
@@ -471,7 +458,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
             id: doc.id,
             title: doc.file_name,
             folderId: doc.folder_id || 'f-cn',
-            source: 'Supabase Cloud',
+            source: 'Firebase Cloud',
             size: sizeMb,
             sizeBytes: doc.file_size || 1048576,
             date: doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Recently',
@@ -484,7 +471,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
         setTrashedFiles(mappedTrashed);
       }
     } catch (e) {
-      console.warn('Supabase document fetch note:', e);
+      console.warn('Firebase document fetch note:', e);
     }
   };
 
@@ -868,7 +855,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     const randomColor = colors[folders.length % colors.length];
 
     try {
-      const created = await SupabaseService.createFolder(
+      const created = await FirebaseService.createFolder(
         newFolderName.trim(),
         newFolderDesc.trim(),
         newFolderCode.trim()
@@ -884,9 +871,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       };
 
       setFolders(prev => [...prev, newFolder]);
-      showNotification('FOLDER CREATED', `"${newFolder.name}" saved to Supabase`, 'success');
+      showNotification('FOLDER CREATED', `"${newFolder.name}" saved to Firebase`, 'success');
     } catch (err: any) {
-      showNotification('FOLDER CREATION FAILED', err?.message || 'Error creating folder in Supabase', 'warning');
+      showNotification('FOLDER CREATION FAILED', err?.message || 'Error creating folder in Firebase', 'warning');
     }
 
     setNewFolderName('');
@@ -895,7 +882,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     setIsCreateFolderModalOpen(false);
   };
 
-  // Upload File via Browser File Picker (Supabase Private Storage & Database)
+  // Upload File via Browser File Picker (Firebase Cloud Storage & Firestore)
   const [isUploading, setIsUploading] = useState(false);
 
   const handleUploadFileSubmit = async () => {
@@ -924,7 +911,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       const targetFolderId = selectedFolderId || folders[0]?.id || 'f-cn';
 
       // Extract text preview snippet locally for text files
-      let snippetText = `Document uploaded: ${fileNameToUse}. Stored in Supabase Private Storage.`;
+      let snippetText = `Document uploaded: ${fileNameToUse}. Stored in Firebase Cloud Storage.`;
       if (!isPdf && selectedUploadFile.type.includes('text')) {
         try {
           const rawText = await selectedUploadFile.text();
@@ -932,17 +919,17 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         } catch (e) { }
       }
 
-      // Upload to Supabase Storage & Database
+      // Upload to Firebase Storage & Firestore
       let uploadedDbFile = null;
       try {
-        uploadedDbFile = await SupabaseService.uploadFile(selectedUploadFile, targetFolderId, snippetText);
+        uploadedDbFile = await FirebaseService.uploadFile(selectedUploadFile, targetFolderId, snippetText);
       } catch (err) {
-        console.warn('Supabase upload fallback:', err);
+        console.warn('Firebase upload fallback:', err);
       }
 
       let downloadUrl = localBlobUrl;
       if (uploadedDbFile?.storage_path) {
-        const signedUrl = await SupabaseService.getFileDownloadUrl(uploadedDbFile.storage_path);
+        const signedUrl = await FirebaseService.getFileDownloadUrl(uploadedDbFile.storage_path);
         if (signedUrl) downloadUrl = signedUrl;
       }
 
@@ -950,7 +937,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         id: uploadedDbFile?.id || `doc-${Date.now()}`,
         title: fileNameToUse,
         folderId: targetFolderId,
-        source: selectedSource || 'Supabase Cloud',
+        source: selectedSource || 'Firebase Cloud',
         size: `${fileSizeMb} MB`,
         sizeBytes: selectedUploadFile.size,
         date: 'Just now',
@@ -1002,9 +989,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       setFiles(prev => prev.filter(f => f.id !== fileId));
 
       try {
-        await SupabaseService.trashFile(fileId);
+        await FirebaseService.trashFile(fileId);
       } catch (e) {
-        console.warn('Supabase trash error:', e);
+        console.warn('Firebase trash error:', e);
       }
     }
     setDeletingFileTarget(null);
@@ -1025,9 +1012,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }));
 
     try {
-      await SupabaseService.restoreFile(doc.id);
+      await FirebaseService.restoreFile(doc.id);
     } catch (e) {
-      console.warn('Supabase restore error:', e);
+      console.warn('Firebase restore error:', e);
     }
     showNotification('FILE RESTORED', doc.title, 'success');
   };
@@ -1038,11 +1025,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     setPermanentDeleteTarget(null);
 
     try {
-      await SupabaseService.permanentlyDeleteFile(fileId, targetFile?.storagePath);
+      await FirebaseService.permanentlyDeleteFile(fileId, targetFile?.storagePath);
     } catch (e) {
-      console.warn('Supabase permanent delete error:', e);
+      console.warn('Firebase permanent delete error:', e);
     }
-    showNotification('PERMANENTLY DELETED', 'File removed from Supabase storage & database', 'warning');
+    showNotification('PERMANENTLY DELETED', 'File removed from Firebase storage & database', 'warning');
   };
 
   const handleEmptyTrash = () => {
@@ -1055,14 +1042,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     setTrashedFiles([]);
 
     try {
-      await SupabaseService.emptyTrash();
+      await FirebaseService.emptyTrash();
     } catch (e) {
-      console.warn('Supabase empty trash error:', e);
+      console.warn('Firebase empty trash error:', e);
     }
     showNotification('TRASH EMPTIED', 'All trashed files permanently removed', 'warning');
   };
 
-  // Save Edit Profile (Supabase Auth & Database Synced)
+  // Save Edit Profile (Firebase Auth & Firestore Synced)
   const handleSaveProfile = async () => {
     setStudentProfile(prev => ({
       ...prev,
@@ -1076,13 +1063,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
     try {
       await authUpdateProfile({ fullName: editName });
-      showNotification('PROFILE UPDATED', 'Profile saved to Supabase', 'success');
+      showNotification('PROFILE UPDATED', 'Profile saved to Firebase', 'success');
     } catch (e: any) {
       showNotification('PROFILE UPDATE FAILED', e?.message || 'Error updating profile', 'warning');
     }
   };
 
-  // Save Change Password (Supabase Auth Synced)
+  // Save Change Password (Firebase Auth Synced)
   const handleChangePasswordSubmit = async () => {
     if (!currentPassword) {
       setPasswordFeedback('Please enter your current password.');
@@ -1101,10 +1088,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     try {
       const { error } = await authUpdatePassword(newPassword);
       if (error) {
-        setPasswordFeedback(error.message || 'Error changing password in Supabase.');
+        setPasswordFeedback(error.message || 'Error changing password in Firebase.');
         return;
       }
-      showNotification('PASSWORD CHANGED', 'Updated securely in Supabase Auth', 'success');
+      showNotification('PASSWORD CHANGED', 'Updated securely in Firebase Auth', 'success');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -1122,11 +1109,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     }
   };
 
-  // Native Device File Download Trigger (Supabase Private Signed URL)
+  // Native Device File Download Trigger (Firebase Cloud Storage URL)
   const handleDownloadToDevice = async (doc: AcademicFile) => {
     let targetUrl = doc.fileUrl;
     if (doc.storagePath) {
-      const signed = await SupabaseService.getFileDownloadUrl(doc.storagePath);
+      const signed = await FirebaseService.getFileDownloadUrl(doc.storagePath);
       if (signed) targetUrl = signed;
     }
 
