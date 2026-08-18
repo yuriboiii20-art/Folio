@@ -95,6 +95,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const formatAuthError = (err: any): string => {
     const msg = err?.message || '';
+    if (msg.includes('auth/unauthorized-domain') || msg.includes('unauthorized-domain')) {
+      return 'This domain is not authorized in Firebase. Go to Firebase Console > Authentication > Settings > Authorized domains > Click "Add domain" and add your Vercel domain.';
+    }
     if (msg.includes('auth/operation-not-allowed') || msg.includes('operation-not-allowed')) {
       return 'Email/Password Sign-In is not enabled yet in Firebase Console. Go to Firebase Console > Authentication > Sign-in method > Click "Email/Password" > Toggle "Enable" and click "Save".';
     }
