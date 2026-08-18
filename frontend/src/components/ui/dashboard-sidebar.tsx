@@ -308,25 +308,39 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     setTodoTasks(prev => prev.filter(t => t.id !== id));
   };
 
-  // Toggle Star Handlers for Folders & Files
-  const handleToggleStarFolder = (folderId: string, e?: React.MouseEvent) => {
+  // Toggle Star Handlers for Folders & Files (Database Synced)
+  const handleToggleStarFolder = async (folderId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const current = folders.find(f => f.id === folderId)?.isStarred || false;
     setFolders(prev => prev.map(f => {
       if (f.id === folderId) {
-        return { ...f, isStarred: !f.isStarred };
+        return { ...f, isStarred: !current };
       }
       return f;
     }));
+
+    try {
+      await FirebaseService.toggleFolderStarred(folderId, current);
+    } catch (err) {
+      console.warn('Firebase folder star toggle error:', err);
+    }
   };
 
-  const handleToggleStarFile = (fileId: string, e?: React.MouseEvent) => {
+  const handleToggleStarFile = async (fileId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const current = files.find(f => f.id === fileId)?.isStarred || false;
     setFiles(prev => prev.map(f => {
       if (f.id === fileId) {
-        return { ...f, isStarred: !f.isStarred };
+        return { ...f, isStarred: !current };
       }
       return f;
     }));
+
+    try {
+      await FirebaseService.toggleFileStarred(fileId, current);
+    } catch (err) {
+      console.warn('Firebase file star toggle error:', err);
+    }
   };
 
   // Modals Open State
@@ -427,7 +441,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
           description: f.description || 'Academic subject resource folder',
           fileCount: 0,
           colorHex: colors[idx % colors.length],
-          isStarred: false
+          isStarred: Boolean(f.is_starred)
         })));
       }
 
@@ -553,88 +567,96 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     autoRenameDuplicates: true,
   });
 
-  // Dynamic Folders State
-  const [folders, setFolders] = useState<SubjectFolder[]>([
-    {
-      id: 'f-cn',
-      name: 'Computer Networks',
-      code: 'CS301',
-      description: 'OSI layers, TCP/IP protocol stack, IP addressing & CIDR subnetting notes',
-      fileCount: 4,
-      colorHex: '#334155'
-    },
-    {
-      id: 'f-dbms',
-      name: 'Database Management',
-      code: 'CS302',
-      description: 'SQL query optimization, ER diagrams, 3NF Normalization & ACID properties',
-      fileCount: 3,
-      colorHex: '#475569'
-    },
-    {
-      id: 'f-ml',
-      name: 'Machine Learning',
-      code: 'CS401',
-      description: 'Supervised algorithms, Decision Trees, Neural Networks & python lab manuals',
-      fileCount: 5,
-      colorHex: '#0f172a'
-    }
-  ]);
+  // Dynamic Folders State (Synced with localStorage cache)
+  const [folders, setFolders] = useState<SubjectFolder[]>(() => {
+    try {
+      const cached = localStorage.getItem('folio_cached_folders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { }
+    return [
+      {
+        id: 'f-cn',
+        name: 'Computer Networks',
+        code: 'CS301',
+        description: 'OSI layers, TCP/IP protocol stack, IP addressing & CIDR subnetting notes',
+        fileCount: 4,
+        colorHex: '#334155'
+      },
+      {
+        id: 'f-dbms',
+        name: 'Database Management',
+        code: 'CS302',
+        description: 'SQL query optimization, ER diagrams, 3NF Normalization & ACID properties',
+        fileCount: 3,
+        colorHex: '#475569'
+      },
+      {
+        id: 'f-ml',
+        name: 'Machine Learning',
+        code: 'CS401',
+        description: 'Supervised algorithms, Decision Trees, Neural Networks & python lab manuals',
+        fileCount: 5,
+        colorHex: '#0f172a'
+      }
+    ];
+  });
 
-  // Dynamic Files State
-  const [files, setFiles] = useState<AcademicFile[]>([
-    {
-      id: 'doc-1',
-      title: 'Unit-1_IP_Addressing_Notes.pdf',
-      folderId: 'f-cn',
-      source: 'WhatsApp',
-      size: '1.0 MB',
-      sizeBytes: 1048576,
-      date: 'Today',
-      fileType: 'pdf',
-      fileUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf',
-      contentSnippet: 'Chapter 1: IP Addressing Principles, Subnetting, IPv4 Header structure, and CIDR Notation.'
-    },
-    {
-      id: 'doc-2',
-      title: 'Relational_Algebra_Assignment.pdf',
-      folderId: 'f-dbms',
-      source: 'Google Classroom',
-      size: '2.0 MB',
-      sizeBytes: 2097152,
-      date: 'Yesterday',
-      fileType: 'pdf',
-      fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-      contentSnippet: 'Assignment 2: Selection (σ), Projection (π), Cartesian Product (×), and Natural Join (⋈) queries.'
-    },
-    {
-      id: 'doc-3',
-      title: 'Machine_Learning_Lab_Manual.pdf',
-      folderId: 'f-ml',
-      source: 'Direct Upload',
-      size: '3.4 MB',
-      sizeBytes: 3565158,
-      date: '3 days ago',
-      fileType: 'text',
-      contentSnippet: `LAB PROGRAM 1: DECISION TREE CLASSIFIER
+  // Dynamic Files State (Synced with localStorage cache)
+  const [files, setFiles] = useState<AcademicFile[]>(() => {
+    try {
+      const cached = localStorage.getItem('folio_cached_files');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { }
+    return [
+      {
+        id: 'doc-1',
+        title: 'Unit-1_IP_Addressing_Notes.pdf',
+        folderId: 'f-cn',
+        source: 'WhatsApp',
+        size: '1.0 MB',
+        sizeBytes: 1048576,
+        date: 'Today',
+        fileType: 'pdf',
+        fileUrl: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf',
+        contentSnippet: 'Chapter 1: IP Addressing Principles, Subnetting, IPv4 Header structure, and CIDR Notation.'
+      },
+      {
+        id: 'doc-2',
+        title: 'Relational_Algebra_Assignment.pdf',
+        folderId: 'f-dbms',
+        source: 'Google Classroom',
+        size: '2.0 MB',
+        sizeBytes: 2097152,
+        date: 'Yesterday',
+        fileType: 'pdf',
+        fileUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        contentSnippet: 'Assignment 2: Selection (σ), Projection (π), Cartesian Product (×), and Natural Join (⋈) queries.'
+      }
+    ];
+  });
 
-Objectives:
-1. Load Iris Dataset using scikit-learn.
-2. Train DecisionTreeClassifier with entropy criterion.
-3. Visualize decision boundaries and tree nodes.
+  // Persist folders and files changes to local browser storage immediately
+  useEffect(() => {
+    try {
+      if (folders && folders.length > 0) {
+        localStorage.setItem('folio_cached_folders', JSON.stringify(folders));
+      }
+    } catch (e) { }
+  }, [folders]);
 
-Python Implementation Snippet:
-from sklearn.datasets import load_iris
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split
-
-iris = load_iris()
-X_train, X_test, y_train, y_test = train_test_split(iris.data, iris.target, test_size=0.2)
-clf = DecisionTreeClassifier(criterion='entropy')
-clf.fit(X_train, y_train)
-print("Model Accuracy:", clf.score(X_test, y_test))`
-    }
-  ]);
+  useEffect(() => {
+    try {
+      if (files && files.length > 0) {
+        localStorage.setItem('folio_cached_files', JSON.stringify(files));
+      }
+    } catch (e) { }
+  }, [files]);
 
   // Form States
   const [newFolderName, setNewFolderName] = useState('');
@@ -1632,79 +1654,74 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       </span>
                     </div>
 
-                    {folders.filter(f => f.isStarred).length === 0 && files.filter(f => f.isStarred).length === 0 ? (
-                      <div className="text-center py-3 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-                        <p className="text-[11px] font-medium text-slate-500">
-                          Star <Star className="w-3 h-3 inline text-amber-400 fill-amber-400 mx-0.5" /> any file or folder to pin it here.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                        {/* Starred Folders */}
-                        {folders.filter(f => f.isStarred).map((folder) => {
-                          const folderFiles = files.filter(f => f.folderId === folder.id);
-                          return (
-                            <div
-                              key={folder.id}
-                              className="relative group"
-                            >
-                              <button
-                                onClick={(e) => handleToggleStarFolder(folder.id, e)}
-                                className="absolute top-2 right-2 z-20 p-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100 shadow-2xs"
-                                title="Unstar folder"
-                              >
-                                <Star className="w-3.5 h-3.5 fill-amber-400" />
-                              </button>
-                              <FolderCard
-                                title={folder.name}
-                                code={folder.code}
-                                description={folder.description}
-                                fileCount={folderFiles.length}
-                                onClick={() => {
-                                  setOpenedFolderId(folder.id);
-                                  setActiveTab('home');
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
+                    {(() => {
+                      const starredFoldersList = folders.filter(f => f.isStarred);
+                      const starredFilesList = files.filter(f => f.isStarred);
+                      const totalStarred = [
+                        ...starredFoldersList.map(f => ({ id: f.id, title: f.name, isFolder: true, folderId: f.id })),
+                        ...starredFilesList.map(file => ({ id: file.id, title: formatFileTitle(file.title), isFolder: false, fileObj: file }))
+                      ];
 
-                        {/* Starred Files */}
-                        {files.filter(f => f.isStarred).map((file) => (
-                          <div
-                            key={file.id}
-                            className="flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 transition-all cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 rounded-md bg-slate-200 border border-slate-300 text-slate-700 flex items-center justify-center shrink-0">
-                                <FileText className="w-3 h-3" />
-                              </div>
-                              <h4 className="text-xs font-bold text-slate-900 truncate">
-                                {formatFileTitle(file.title)}
-                              </h4>
-                            </div>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                onClick={() => setReadingFile(file)}
-                                className="p-0.5 px-1.5 rounded bg-slate-900 text-white text-[9px] font-bold hover:bg-slate-800 cursor-pointer flex items-center gap-1"
-                                title="Read In-App"
-                              >
-                                <Eye className="w-2.5 h-2.5" />
-                                <span>Read</span>
-                              </button>
-                              <button
-                                onClick={(e) => handleToggleStarFile(file.id, e)}
-                                className="p-1 text-amber-500 hover:text-amber-700 transition-all cursor-pointer"
-                                title="Unstar file"
-                              >
-                                <Star className="w-3.5 h-3.5 fill-amber-400" />
-                              </button>
-                            </div>
+                      if (totalStarred.length === 0) {
+                        return (
+                          <div className="text-center py-3 border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
+                            <p className="text-[11px] font-medium text-slate-500">
+                              Star <Star className="w-3 h-3 inline text-amber-400 fill-amber-400 mx-0.5" /> any file or folder to pin it here.
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                          {totalStarred.map((item, index) => (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                if (item.isFolder) {
+                                  setOpenedFolderId(item.folderId);
+                                  setActiveTab('home');
+                                } else if (item.fileObj) {
+                                  setReadingFile(item.fileObj);
+                                }
+                              }}
+                              className="flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                  {index + 1}.
+                                </span>
+                                {item.isFolder ? (
+                                  <FolderClosed className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                ) : (
+                                  <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                )}
+                                <span className="text-xs font-medium truncate text-slate-900" title={item.title}>
+                                  {item.title}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.isFolder) {
+                                      handleToggleStarFolder(item.id, e);
+                                    } else {
+                                      handleToggleStarFile(item.id, e);
+                                    }
+                                  }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                  title="Unstar item"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                 </div>
@@ -2748,6 +2765,150 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       );
                     })}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STARRED RESOURCES TAB */}
+          {activeTab === 'starred' && (
+            <div className="space-y-8 max-w-6xl mx-auto animate-in fade-in duration-300">
+              {/* Header Card */}
+              <div className="p-6 rounded-xl border border-slate-200 bg-white shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 border border-amber-200 flex items-center justify-center shadow-2xs">
+                    <Star className="w-5 h-5 fill-amber-400" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">Starred Academic Resources</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">
+                      Quick access to your pinned subject folders, key study documents, and priority notes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-3 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+                    {folders.filter(f => f.isStarred).length} Folders
+                  </span>
+                  <span className="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-800 border border-slate-200">
+                    {files.filter(f => f.isStarred).length} Files
+                  </span>
+                </div>
+              </div>
+
+              {/* Check if anything is starred */}
+              {folders.filter(f => f.isStarred).length === 0 && files.filter(f => f.isStarred).length === 0 ? (
+                <div className="p-12 rounded-xl border border-dashed border-slate-300 bg-white text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-400 flex items-center justify-center mx-auto border border-amber-100">
+                    <Star className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">No Starred Resources Yet</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Click the star icon on any subject folder or document in your library to pin it here for instant one-click access.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('home')}
+                    className="mt-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black cursor-pointer hover:bg-slate-800 transition-all"
+                  >
+                    Browse All Folders
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* 1. Minimal Starred Folders List (To-Do Style) */}
+                  {folders.filter(f => f.isStarred).length > 0 && (
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-mono font-bold tracking-widest text-slate-500 uppercase flex items-center gap-2">
+                        <FolderClosed className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Starred Folders ({folders.filter(f => f.isStarred).length})</span>
+                      </h2>
+
+                      <div className="space-y-2">
+                        {folders.filter(f => f.isStarred).map((folder, index) => (
+                          <div
+                            key={folder.id}
+                            onClick={() => {
+                              setOpenedFolderId(folder.id);
+                              setActiveTab('home');
+                            }}
+                            className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                              <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                {index + 1}.
+                              </span>
+                              <FolderClosed className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <span className="text-xs font-medium truncate text-slate-900" title={folder.name}>
+                                {folder.name}
+                              </span>
+                            </div>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleStarFolder(folder.id, e);
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer shrink-0"
+                              title="Unstar Folder"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. Minimal Starred Files List (To-Do Style) */}
+                  {files.filter(f => f.isStarred).length > 0 && (
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-mono font-bold tracking-widest text-slate-500 uppercase flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Starred Files ({files.filter(f => f.isStarred).length})</span>
+                      </h2>
+
+                      <div className="space-y-2">
+                        {files.filter(f => f.isStarred).map((doc, index) => (
+                          <div
+                            key={doc.id}
+                            className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                              <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
+                                {index + 1}.
+                              </span>
+                              <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span className="text-xs font-medium truncate text-slate-900" title={doc.title}>
+                                {formatFileTitle(doc.title)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={() => setReadingFile(doc)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3" />
+                                <span>View</span>
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStarFile(doc.id, e);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                                title="Unstar File"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
