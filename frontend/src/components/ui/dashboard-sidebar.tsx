@@ -61,7 +61,8 @@ import {
   Calendar,
   CalendarDays,
   HardDrive,
-  Star
+  Star,
+  ShieldCheck
 } from 'lucide-react';
 
 export type WebNavItem = {
@@ -423,6 +424,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
   };
 
   // Modals Open State
+  const [policyModalType, setPolicyModalType] = useState<'terms' | 'privacy' | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [notificationModal, setNotificationModal] = useState<{
     isOpen: boolean;
@@ -778,7 +780,9 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     { id: 'home', title: 'Subject Folders', icon: Home, badge: folders.length, badgeColor: 'bg-slate-200 text-slate-800' },
     { id: 'analytics', title: 'Analytics', icon: BarChart2 },
     { id: 'ai-studio', title: 'AI Studio', icon: Bot, badge: 'RAG', badgeColor: 'bg-slate-800 text-white' },
-    { id: 'trash', title: 'Trash', icon: Trash2, badge: trashedFiles.length, badgeColor: trashedFiles.length > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-400' },
+    { id: 'terms', title: 'Terms & Conditions', icon: FileText },
+    { id: 'privacy', title: 'Privacy Policy', icon: ShieldCheck },
+    { id: 'trash', title: 'Trash', icon: Trash2 },
     { id: 'settings', title: 'Settings', icon: Settings },
   ];
 
@@ -1654,8 +1658,7 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                       <div className="col-span-12 sm:col-span-4 flex flex-row sm:flex-col gap-2">
                         {/* Total Folders Small Box */}
                         <div
-                          onClick={() => setActiveTab('home')}
-                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 flex items-center justify-between"
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -1670,13 +1673,11 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                               </span>
                             </div>
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
                         </div>
 
                         {/* Total Files Small Box */}
                         <div
-                          onClick={() => setActiveTab('home')}
-                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 flex items-center justify-between"
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -1691,7 +1692,6 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                               </span>
                             </div>
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
                         </div>
                       </div>
 
@@ -2787,6 +2787,231 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                   <span className="px-3 py-1 bg-slate-200 text-slate-800 font-bold rounded-md border border-slate-300">Active</span>
                 </div>
 
+                {/* Legal & Compliance Policies Box */}
+                <div className="p-5 rounded-lg bg-white border border-slate-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-slate-700" />
+                        <span>Legal Agreements & Academic Policies</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Review academic data privacy guidelines, terms of service, and student usage rules.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => setActiveTab('terms')}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-2xs transition-all cursor-pointer active:scale-95"
+                    >
+                      <FileText className="w-4 h-4 text-slate-300" />
+                      <span>Terms & Conditions</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('privacy')}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-slate-600" />
+                      <span>Privacy Policy</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* TERMS & CONDITIONS FULL PAGE */}
+          {activeTab === 'terms' && (
+            <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+              {/* Header Card */}
+              <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-md shrink-0">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-black tracking-wider uppercase mb-1">
+                      <span>Legal Agreement</span>
+                      <span className="text-slate-300">•</span>
+                      <span>Version 2.4.0</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Terms & Conditions of Service</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-1">
+                      Official terms governing student access, academic note uploads, and system usage rules.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Terms Content Body Cards */}
+              <div className="space-y-4 text-xs text-slate-700">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-medium text-slate-800 text-xs leading-relaxed">
+                    Welcome to FOLIO Academic OS. Please read these Terms & Conditions carefully. By accessing your scholar portal, uploading subject resources, or creating study folders, you agree to comply with institutional academic standards and the rules outlined below.
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">1</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Academic Purpose & Fair Use</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        FOLIO is provided exclusively for personal study organization, lecture note storage, assignment tracking, and academic revision. Commercial misuse or hosting unauthorized files is strictly prohibited.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">2</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Intellectual Property & Student Work</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        Students retain 100% copyright ownership over their original handwritten notes, study guides, and authored documents. Uploading proprietary examination papers without authorization violates institutional policy.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">3</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">USN Verification & Account Security</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        Your Student USN identifier must reflect your official university credentials. Account security and login session confidentiality remain the sole responsibility of the registered scholar.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">4</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Storage Policies & Discard Mechanics</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        Subject folders and notes moved to the Trash Bin are held in staging before permanent removal. Users are encouraged to maintain backup copies of critical course projects.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-xl border border-slate-200 bg-slate-900 text-white space-y-2">
+                    <h3 className="font-extrabold text-sm flex items-center gap-2 text-slate-100">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Limitation of Liability & Institutional Portal Disclaimer</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      FOLIO OS operates as an auxiliary learning management utility. Official academic grades, attendance percentages, and formal semester registrations remain governed strictly by your official university administration portals.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PRIVACY POLICY FULL PAGE */}
+          {activeTab === 'privacy' && (
+            <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+              {/* Header Card */}
+              <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+                    <ShieldCheck className="w-6 h-6 text-emerald-100" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black tracking-wider uppercase mb-1">
+                      <span>Data Protection</span>
+                      <span className="text-emerald-300">•</span>
+                      <span>Privacy Standard</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Data Privacy Policy</h1>
+                    <p className="text-xs font-medium text-slate-500 mt-1">
+                      How your student credentials, USN identifier, and uploaded documents are protected and stored.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setActiveTab('dashboard')}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Dashboard</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Privacy Content Body Cards */}
+              <div className="space-y-4 text-xs text-slate-700">
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+                  <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200/80 font-medium text-emerald-950 text-xs leading-relaxed">
+                    We strictly prioritize student privacy and data security. FOLIO handles student USN identifiers, uploaded subject files, and personal credentials with institutional-grade protection and encryption.
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">1</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Information We Process</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        We process student names, University Seat Numbers (USN), academic department/branch, email addresses, and document file metadata required to construct your personalized subject folders.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">2</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Cloud Firestore Encryption</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        All student database documents stored in Google Cloud Firestore are encrypted both in transit (SSL/TLS) and at rest. Access is governed strictly by Firebase Security Rules.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">3</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Zero Commercial Data Sales</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        FOLIO will never sell, lease, monetize, or disclose student records or uploaded notes to third-party ad networks, marketing brokers, or external entities.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-xs">4</div>
+                        <h3 className="font-extrabold text-sm text-slate-900">Local Browser Caching</h3>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed pl-9">
+                        To enable instant offline loading, subject folder structures and starred items are cached securely in your browser's local storage (`localStorage`) on your physical device.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-xl border border-slate-200 bg-slate-900 text-white space-y-2">
+                    <h3 className="font-extrabold text-sm flex items-center gap-2 text-slate-100">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Data Ownership & Right to Erasure</span>
+                    </h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      You retain full control over your academic data. You can empty your Trash Bin, update your USN profile, or request complete account erasure at any time through Workspace Settings.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -3724,6 +3949,161 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
               OK
             </button>
 
+          </div>
+        </div>
+      )}
+
+      {/* TERMS & CONDITIONS / PRIVACY POLICY MODAL */}
+      {policyModalType && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-200">
+                  {policyModalType === 'terms' ? <FileText className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5 text-emerald-400" />}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base tracking-tight">
+                    {policyModalType === 'terms' ? 'Terms & Conditions of Service' : 'Data Privacy Policy & Protection'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-mono">FOLIO OS • Version 2.4.0 • Updated August 2026</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPolicyModalType(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body / Scrollable Policy Text */}
+            <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-700 leading-relaxed font-sans">
+              {policyModalType === 'terms' ? (
+                <>
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 font-medium">
+                    Please read these Terms & Conditions carefully before using the FOLIO Academic OS platform. By accessing or uploading academic notes, you agree to abide by institutional fair-use guidelines.
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">1</span>
+                      Academic Fair-Use & Purpose
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      FOLIO is designed solely for academic note management, subject resource cataloging, and personal study organization. Users agree not to upload non-academic, infringing, or harmful file types.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">2</span>
+                      Intellectual Property & Student Ownership
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      Students retain full copyright ownership of their original handwritten notes, summaries, and self-authored study materials. Uploading copyrighted course materials without authorization is prohibited.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">3</span>
+                      User Account Responsibility & USN Verification
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      You are responsible for maintaining the security of your account credentials and student USN identifier. Any activity performed under your account remains your responsibility.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">4</span>
+                      Storage Quotas & Trash Bin Discard Rules
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      Deleted files and folders are placed in the Trash Bin where they can be restored or permanently purged. Storage quotas are governed by Cloud Firestore security policies.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center text-[10px]">5</span>
+                      Service Availability
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      FOLIO OS provides local offline storage fallback for high availability. However, cloud synchronization depends on active internet connectivity and Firebase service availability.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80 font-medium text-emerald-950">
+                    Your academic data privacy is our highest priority. We protect student USN identifiers, note uploads, and personal credentials using end-to-end security measures.
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">1</span>
+                      Information We Process
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      We store your Full Name, USN, Department/Branch, Email, and document metadata required to categorize subject folders and calculate study streak metrics.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">2</span>
+                      Firebase Encryption & Security Rules
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      All data stored in Cloud Firestore is encrypted in transit and at rest using SSL/TLS protocols. Access is restricted strictly to authenticated user sessions.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">3</span>
+                      Zero Third-Party Commercial Sales
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      We never sell, rent, or trade student personal information or uploaded document contents to commercial advertisers or data brokers.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">4</span>
+                      Local Storage & Offline Caching
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      FOLIO uses your browser's local storage (`localStorage`) to cache subject folders and starred notes for instant offline performance. This data remains on your physical device.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px]">5</span>
+                      Account Deletion & Data Right
+                    </h4>
+                    <p className="pl-7 text-slate-600">
+                      You have the right to request full account erasure and permanent deletion of your stored files from Cloud Firestore at any time via Settings.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
+              <button
+                onClick={() => setPolicyModalType(null)}
+                className="px-5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-black shadow-xs cursor-pointer active:scale-95 transition-all"
+              >
+                I Understand & Close
+              </button>
+            </div>
           </div>
         </div>
       )}
