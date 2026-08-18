@@ -147,7 +147,23 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
 
   // Trash Bin & Browser Status Link State
   const [trashedFiles, setTrashedFiles] = useState<AcademicFile[]>([]);
+  const [trashedFolders, setTrashedFolders] = useState<SubjectFolder[]>(() => {
+    try {
+      const cached = localStorage.getItem('folio_cached_trashed_folders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) { }
+    return [];
+  });
   const [hoveredStatusLink, setHoveredStatusLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('folio_cached_trashed_folders', JSON.stringify(trashedFolders));
+    } catch (e) { }
+  }, [trashedFolders]);
 
   // Upcoming Deadlines State
   const [deadlines, setDeadlines] = useState<DeadlineItem[]>([
@@ -308,38 +324,101 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     setTodoTasks(prev => prev.filter(t => t.id !== id));
   };
 
+  // Smooth Animation Out State Tracking
+  const [animatingOutIds, setAnimatingOutIds] = useState<string[]>([]);
+
   // Toggle Star Handlers for Folders & Files (Database Synced)
   const handleToggleStarFolder = async (folderId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const current = folders.find(f => f.id === folderId)?.isStarred || false;
-    setFolders(prev => prev.map(f => {
-      if (f.id === folderId) {
-        return { ...f, isStarred: !current };
-      }
-      return f;
-    }));
 
-    try {
-      await FirebaseService.toggleFolderStarred(folderId, current);
-    } catch (err) {
-      console.warn('Firebase folder star toggle error:', err);
+    if (current && activeTab === 'starred') {
+      setAnimatingOutIds(prev => [...prev, folderId]);
+      setTimeout(async () => {
+        setFolders(prev => prev.map(f => f.id === folderId ? { ...f, isStarred: false } : f));
+        setAnimatingOutIds(prev => prev.filter(id => id !== folderId));
+        try {
+          await FirebaseService.toggleFolderStarred(folderId, true);
+        } catch (err) {
+          console.warn('Firebase folder star toggle error:', err);
+        }
+      }, 300);
+    } else {
+      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, isStarred: !current } : f));
+      try {
+        await FirebaseService.toggleFolderStarred(folderId, current);
+      } catch (err) {
+        console.warn('Firebase folder star toggle error:', err);
+      }
     }
   };
 
   const handleToggleStarFile = async (fileId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const current = files.find(f => f.id === fileId)?.isStarred || false;
-    setFiles(prev => prev.map(f => {
-      if (f.id === fileId) {
-        return { ...f, isStarred: !current };
+
+    if (current && activeTab === 'starred') {
+      setAnimatingOutIds(prev => [...prev, fileId]);
+      setTimeout(async () => {
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isStarred: false } : f));
+        setAnimatingOutIds(prev => prev.filter(id => id !== fileId));
+        try {
+          await FirebaseService.toggleFileStarred(fileId, true);
+        } catch (err) {
+          console.warn('Firebase file star toggle error:', err);
+        }
+      }, 300);
+    } else {
+      setFiles(prev => prev.map(f => f.id === fileId ? { ...f, isStarred: !current } : f));
+      try {
+        await FirebaseService.toggleFileStarred(fileId, current);
+      } catch (err) {
+        console.warn('Firebase file star toggle error:', err);
       }
-      return f;
-    }));
+    }
+  };
+
+  // Folder Trash & Restore Handlers with Smooth Delete Animation
+  const handleTrashFolder = (folderId: string) => {
+    const targetFolder = folders.find(f => f.id === folderId);
+    if (!targetFolder) return;
+
+    setAnimatingOutIds(prev => [...prev, folderId]);
+
+    setTimeout(async () => {
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+      setTrashedFolders(prev => [targetFolder, ...prev]);
+      setAnimatingOutIds(prev => prev.filter(id => id !== folderId));
+      showNotification('FOLDER DISCARDED', `"${targetFolder.name}" moved to Trash Bin`, 'info');
+
+      try {
+        await FirebaseService.trashFolder(folderId);
+      } catch (err) {
+        console.warn('Firebase folder trash note:', err);
+      }
+    }, 300);
+  };
+
+  const handleRestoreFolder = async (folder: SubjectFolder) => {
+    setTrashedFolders(prev => prev.filter(f => f.id !== folder.id));
+    setFolders(prev => [folder, ...prev]);
+    showNotification('FOLDER RESTORED', `"${folder.name}" restored to library`, 'success');
 
     try {
-      await FirebaseService.toggleFileStarred(fileId, current);
+      await FirebaseService.restoreFolder(folder.id);
     } catch (err) {
-      console.warn('Firebase file star toggle error:', err);
+      console.warn('Firebase folder restore note:', err);
+    }
+  };
+
+  const handlePermanentDeleteFolder = async (folderId: string) => {
+    setTrashedFolders(prev => prev.filter(f => f.id !== folderId));
+    showNotification('FOLDER PERMANENTLY DELETED', 'Folder removed permanently', 'warning');
+
+    try {
+      await FirebaseService.deleteFolder(folderId);
+    } catch (err) {
+      console.warn('Firebase permanent folder deletion note:', err);
     }
   };
 
@@ -502,6 +581,20 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
           };
         });
         setTrashedFiles(mappedTrashed);
+      }
+
+      // 4. Fetch Firebase Trashed Folders
+      const dbTrashedFolders = await FirebaseService.fetchTrashedFolders();
+      if (dbTrashedFolders) {
+        setTrashedFolders(dbTrashedFolders.map((f, idx) => ({
+          id: f.id,
+          name: f.name,
+          code: f.subject_name || f.description?.substring(0, 8) || 'SUBJ',
+          description: f.description || 'Academic subject resource folder',
+          fileCount: 0,
+          colorHex: '#64748b',
+          isStarred: Boolean(f.is_starred)
+        })));
       }
     } catch (e) {
       console.warn('Firebase document fetch note:', e);
@@ -1026,9 +1119,14 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
     }
   };
 
-  const performDeleteFile = async (fileId: string) => {
+  const performDeleteFile = (fileId: string) => {
     const targetFile = files.find(f => f.id === fileId);
-    if (targetFile) {
+    if (!targetFile) return;
+
+    setDeletingFileTarget(null);
+    setAnimatingOutIds(prev => [...prev, fileId]);
+
+    setTimeout(async () => {
       setFolders(prev => prev.map(f => {
         if (f.id === targetFile.folderId) {
           return { ...f, fileCount: Math.max(0, f.fileCount - 1) };
@@ -1037,18 +1135,19 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
       }));
       setTrashedFiles(prev => [targetFile, ...prev.filter(t => t.id !== targetFile.id)]);
       setFiles(prev => prev.filter(f => f.id !== fileId));
+      setAnimatingOutIds(prev => prev.filter(id => id !== fileId));
+
+      if (readingFile?.id === fileId) {
+        setReadingFile(null);
+      }
+      showNotification('MOVED TO TRASH', targetFile.title || 'File moved to trash', 'info');
 
       try {
         await FirebaseService.trashFile(fileId);
       } catch (e) {
         console.warn('Firebase trash error:', e);
       }
-    }
-    setDeletingFileTarget(null);
-    if (readingFile?.id === fileId) {
-      setReadingFile(null);
-    }
-    showNotification('MOVED TO TRASH', targetFile?.title || 'File moved to trash', 'info');
+    }, 300);
   };
 
   const handleRestoreFile = async (doc: AcademicFile) => {
@@ -1685,7 +1784,11 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                                   setReadingFile(item.fileObj);
                                 }
                               }}
-                              className="flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all cursor-pointer"
+                              className={`flex items-center justify-between p-2 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all duration-300 ease-in-out cursor-pointer ${
+                                animatingOutIds.includes(item.id)
+                                  ? 'opacity-0 scale-90 -translate-x-4 pointer-events-none'
+                                  : 'opacity-100 scale-100 translate-x-0'
+                              }`}
                             >
                               <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                                 <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
@@ -2080,7 +2183,27 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                     {folders.map((folder) => {
                       const folderFiles = files.filter(f => f.folderId === folder.id);
                       return (
-                        <div key={folder.id} className="relative group">
+                        <div
+                          key={folder.id}
+                          className={`relative group transition-all duration-300 ease-in-out ${
+                            animatingOutIds.includes(folder.id)
+                              ? 'opacity-0 scale-75 -translate-y-4 pointer-events-none'
+                              : 'opacity-100 scale-100 translate-y-0'
+                          }`}
+                        >
+                          {/* Delete/Discard Folder Button (Moves to Trash) */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTrashFolder(folder.id);
+                            }}
+                            className="absolute top-2 left-2 z-20 p-1.5 rounded-lg border border-slate-200 bg-white/80 text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all cursor-pointer shadow-2xs opacity-90 group-hover:opacity-100"
+                            title="Discard folder (Move to Trash)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Star Folder Button */}
                           <button
                             onClick={(e) => handleToggleStarFolder(folder.id, e)}
                             className={`absolute top-2 right-2 z-20 p-1.5 rounded-lg border transition-colors cursor-pointer ${
@@ -2687,9 +2810,9 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
 
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-xs font-bold text-slate-500">
-                    {trashedFiles.length} {trashedFiles.length === 1 ? 'item' : 'items'} in Trash
+                    {trashedFolders.length + trashedFiles.length} {trashedFolders.length + trashedFiles.length === 1 ? 'item' : 'items'} in Trash
                   </span>
-                  {trashedFiles.length > 0 && (
+                  {(trashedFiles.length > 0 || trashedFolders.length > 0) && (
                     <button
                       onClick={handleEmptyTrash}
                       className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-95"
@@ -2701,70 +2824,129 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                 </div>
               </div>
 
-              {/* Trashed Files Listing */}
-              {trashedFiles.length === 0 ? (
+              {/* Trashed Items Listing (Folders & Files) */}
+              {trashedFolders.length === 0 && trashedFiles.length === 0 ? (
                 <div className="p-12 rounded-xl border border-dashed border-slate-300 bg-white text-center space-y-3">
                   <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                     <Trash2 className="w-6 h-6" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-700">Trash is Empty</h3>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    When you delete notes or documents from your library, they will appear here before being permanently removed.
+                    When you delete subject folders or documents from your library, they will appear here before being permanently removed.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
-                    Deleted Files ({trashedFiles.length})
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {trashedFiles.map((doc) => {
-                      const subjectFolder = folders.find(f => f.id === doc.folderId);
-                      return (
-                        <div
-                          key={doc.id}
-                          className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
-                                {doc.fileType === 'pdf' ? 'PDF' : 'DOC'}
-                              </div>
-                              <div className="min-w-0">
-                                <h4 className="text-xs font-bold text-slate-900 truncate" title={doc.title}>
-                                  {doc.title}
-                                </h4>
-                                <div className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                  Folder: <span className="font-bold text-slate-600">{subjectFolder?.name || 'General'}</span>
+                <div className="space-y-8">
+                  {/* Trashed Folders */}
+                  {trashedFolders.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                        Deleted Subject Folders ({trashedFolders.length})
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {trashedFolders.map((folder) => (
+                          <div
+                            key={folder.id}
+                            className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100">
+                                  <FolderClosed className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="text-xs font-bold text-slate-900 truncate" title={folder.name}>
+                                    {folder.name}
+                                  </h4>
+                                  <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                    Subject Code: <span className="font-bold text-slate-600">{folder.code || 'SUBJ'}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <span className="text-[11px] font-mono text-slate-400">{doc.size}</span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleRestoreFile(doc)}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
-                                title="Restore to folder"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
-                                <span>Restore</span>
-                              </button>
-                              <button
-                                onClick={() => setPermanentDeleteTarget(doc)}
-                                className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
-                                title="Delete permanently"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                              <span className="text-[11px] font-mono text-slate-400">Folder</span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleRestoreFolder(folder)}
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
+                                  title="Restore folder to library"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+                                  <span>Restore</span>
+                                </button>
+                                <button
+                                  onClick={() => handlePermanentDeleteFolder(folder.id)}
+                                  className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
+                                  title="Delete folder permanently"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trashed Files */}
+                  {trashedFiles.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                        Deleted Files ({trashedFiles.length})
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {trashedFiles.map((doc) => {
+                          const subjectFolder = folders.find(f => f.id === doc.folderId);
+                          return (
+                            <div
+                              key={doc.id}
+                              className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
+                                    {doc.fileType === 'pdf' ? 'PDF' : 'DOC'}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <h4 className="text-xs font-bold text-slate-900 truncate" title={doc.title}>
+                                      {doc.title}
+                                    </h4>
+                                    <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                      Folder: <span className="font-bold text-slate-600">{subjectFolder?.name || 'General'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                <span className="text-[11px] font-mono text-slate-400">{doc.size}</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleRestoreFile(doc)}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer transition-all"
+                                    title="Restore to folder"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+                                    <span>Restore</span>
+                                  </button>
+                                  <button
+                                    onClick={() => setPermanentDeleteTarget(doc)}
+                                    className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 cursor-pointer transition-all"
+                                    title="Delete permanently"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2832,7 +3014,11 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                               setOpenedFolderId(folder.id);
                               setActiveTab('home');
                             }}
-                            className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all cursor-pointer"
+                            className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all duration-300 ease-in-out cursor-pointer ${
+                              animatingOutIds.includes(folder.id)
+                                ? 'opacity-0 scale-90 -translate-x-4 pointer-events-none'
+                                : 'opacity-100 scale-100 translate-x-0'
+                            }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                               <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">
@@ -2872,7 +3058,11 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
                         {files.filter(f => f.isStarred).map((doc, index) => (
                           <div
                             key={doc.id}
-                            className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all cursor-pointer"
+                            className={`flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:border-slate-300 transition-all duration-300 ease-in-out cursor-pointer ${
+                              animatingOutIds.includes(doc.id)
+                                ? 'opacity-0 scale-90 -translate-x-4 pointer-events-none'
+                                : 'opacity-100 scale-100 translate-x-0'
+                            }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                               <span className="text-[10px] font-mono font-black text-slate-400 shrink-0 w-4">

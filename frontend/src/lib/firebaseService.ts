@@ -100,6 +100,7 @@ export const fetchFolders = async (): Promise<DbFolder[]> => {
     const folders: DbFolder[] = [];
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
+      if (data.trashed) return;
       folders.push({
         id: docSnap.id,
         user_id: data.user_id,
@@ -117,6 +118,72 @@ export const fetchFolders = async (): Promise<DbFolder[]> => {
     return folders;
   } catch (error) {
     console.error('Firestore fetchFolders error:', error);
+    return [];
+  }
+};
+
+export const trashFolder = async (folderId: string): Promise<boolean> => {
+  try {
+    const folderRef = doc(db, 'folders', folderId);
+    await updateDoc(folderRef, {
+      trashed: true,
+      trashed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error trashing folder in Firestore:', error);
+    throw error;
+  }
+};
+
+export const restoreFolder = async (folderId: string): Promise<boolean> => {
+  try {
+    const folderRef = doc(db, 'folders', folderId);
+    await updateDoc(folderRef, {
+      trashed: false,
+      trashed_at: null,
+      updated_at: new Date().toISOString(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error restoring folder in Firestore:', error);
+    throw error;
+  }
+};
+
+export const fetchTrashedFolders = async (): Promise<DbFolder[]> => {
+  const userIds = getEffectiveUserIds();
+  if (userIds.length === 0) return [];
+
+  try {
+    const foldersRef = collection(db, 'folders');
+    const q = query(
+      foldersRef,
+      where('user_id', 'in', userIds),
+      where('trashed', '==', true)
+    );
+    const snapshot = await getDocs(q);
+
+    const folders: DbFolder[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      folders.push({
+        id: docSnap.id,
+        user_id: data.user_id,
+        name: data.name || 'Untitled Folder',
+        description: data.description || '',
+        subject_name: data.subject_name || data.name || '',
+        parent_folder_id: data.parent_folder_id || null,
+        is_starred: Boolean(data.is_starred),
+        created_at: data.created_at || new Date().toISOString(),
+        updated_at: data.updated_at || new Date().toISOString(),
+      });
+    });
+
+    return folders;
+  } catch (error) {
+    console.error('Firestore fetchTrashedFolders error:', error);
     return [];
   }
 };
