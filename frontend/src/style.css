@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --radius-full: 999px;
+}
 
 @layer base {
   :root {

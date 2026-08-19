@@ -27,6 +27,10 @@ export interface DbFolder {
   description?: string;
   subject_name?: string;
   parent_folder_id?: string | null;
+  is_starred?: boolean;
+  archived?: boolean;
+  trashed?: boolean;
+  trashed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +49,8 @@ export interface DbFile {
   is_starred?: boolean;
   trashed?: boolean;
   trashed_at?: string | null;
+  tags?: string[];
+  auto_tagged?: boolean;
   extracted_text?: string;
   created_at: string;
   updated_at: string;
@@ -68,7 +74,7 @@ const getEffectiveUserId = (): string | null => {
 // 1. FOLDERS SERVICE (Cloud Firestore Database)
 // ============================================================================
 
-export const fetchFolders = async (): Promise<DbFolder[]> => {
+export const fetchFolders = async (includeTrashed = false): Promise<DbFolder[]> => {
   const userId = getEffectiveUserId();
   if (!userId) return [];
 
@@ -80,6 +86,7 @@ export const fetchFolders = async (): Promise<DbFolder[]> => {
     const folders: DbFolder[] = [];
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
+      if (!includeTrashed && data.trashed === true) return;
       folders.push({
         id: docSnap.id,
         user_id: data.user_id,
@@ -87,6 +94,10 @@ export const fetchFolders = async (): Promise<DbFolder[]> => {
         description: data.description || '',
         subject_name: data.subject_name || data.name || '',
         parent_folder_id: data.parent_folder_id || null,
+        is_starred: Boolean(data.is_starred),
+        archived: Boolean(data.archived),
+        trashed: Boolean(data.trashed),
+        trashed_at: data.trashed_at || null,
         created_at: data.created_at || new Date().toISOString(),
         updated_at: data.updated_at || new Date().toISOString(),
       });
@@ -115,6 +126,10 @@ export const createFolder = async (
     description: description?.trim() || '',
     subject_name: subjectName?.trim() || name.trim(),
     parent_folder_id: parentFolderId || null,
+    is_starred: false,
+    archived: false,
+    trashed: false,
+    trashed_at: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -188,6 +203,93 @@ export const deleteFolder = async (folderId: string): Promise<boolean> => {
   }
 };
 
+/** Star / unstar a subject folder. Returns the new starred value. */
+export const toggleFolderStarred = async (folderId: string, currentStarred: boolean): Promise<boolean> => {
+  try {
+    await updateDoc(doc(db, 'folders', folderId), {
+      is_starred: !currentStarred,
+      updated_at: new Date().toISOString()
+    });
+    return !currentStarred;
+  } catch (error) {
+    console.error('Error toggling folder star in Firestore:', error);
+    throw error;
+  }
+};
+
+/** Archive / unarchive a subject folder (hidden from the active grid). */
+export const setFolderArchived = async (folderId: string, archived: boolean): Promise<boolean> => {
+  try {
+    await updateDoc(doc(db, 'folders', folderId), {
+      archived,
+      updated_at: new Date().toISOString()
+    });
+    return archived;
+  } catch (error) {
+    console.error('Error archiving folder in Firestore:', error);
+    throw error;
+  }
+};
+
+/**
+ * Soft-delete a subject folder: the folder and every document inside it are
+ * flagged as trashed so both can be restored from the Trash bin.
+ */
+export const trashFolder = async (folderId: string): Promise<string[]> => {
+  const userId = getEffectiveUserId();
+  if (!userId) throw new Error('User must be authenticated');
+
+  const timestamp = new Date().toISOString();
+  const trashedFileIds: string[] = [];
+
+  try {
+    const filesRef = collection(db, 'files');
+    const q = query(filesRef, where('user_id', '==', userId), where('folder_id', '==', folderId));
+    const snapshot = await getDocs(q);
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(docSnap => {
+      if (docSnap.data().trashed === true) return;
+      trashedFileIds.push(docSnap.id);
+      batch.update(docSnap.ref, { trashed: true, trashed_at: timestamp, updated_at: timestamp });
+    });
+
+    batch.update(doc(db, 'folders', folderId), {
+      trashed: true,
+      trashed_at: timestamp,
+      updated_at: timestamp
+    });
+
+    await batch.commit();
+    return trashedFileIds;
+  } catch (error) {
+    console.error('Error soft-deleting folder in Firestore:', error);
+    throw error;
+  }
+};
+
+/** Restore a soft-deleted folder along with the documents trashed with it. */
+export const restoreFolder = async (folderId: string, fileIds: string[] = []): Promise<boolean> => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'folders', folderId), {
+      trashed: false,
+      trashed_at: null,
+      updated_at: timestamp
+    });
+    fileIds.forEach(fileId => {
+      batch.update(doc(db, 'files', fileId), { trashed: false, trashed_at: null, updated_at: timestamp });
+    });
+    await batch.commit();
+    return true;
+  } catch (error) {
+    console.error('Error restoring folder in Firestore:', error);
+    throw error;
+  }
+};
+
 // ============================================================================
 // 2. FILES & STORAGE SERVICE (Cloud Firestore Database + Firebase Storage)
 // ============================================================================
@@ -231,6 +333,8 @@ export const fetchFiles = async (folderId?: string): Promise<DbFile[]> => {
         is_starred: Boolean(data.is_starred),
         trashed: Boolean(data.trashed),
         trashed_at: data.trashed_at || null,
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        auto_tagged: Boolean(data.auto_tagged),
         extracted_text: data.extracted_text || '',
         created_at: data.created_at || new Date().toISOString(),
         updated_at: data.updated_at || new Date().toISOString(),
@@ -275,6 +379,8 @@ export const fetchTrashedFiles = async (): Promise<DbFile[]> => {
         is_starred: Boolean(data.is_starred),
         trashed: true,
         trashed_at: data.trashed_at || new Date().toISOString(),
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        auto_tagged: Boolean(data.auto_tagged),
         extracted_text: data.extracted_text || '',
         created_at: data.created_at || new Date().toISOString(),
         updated_at: data.updated_at || new Date().toISOString(),
@@ -301,7 +407,9 @@ const fileToDataUrl = (file: File): Promise<string> => {
 export const uploadFile = async (
   file: File,
   folderId?: string | null,
-  extractedSnippet?: string
+  extractedSnippet?: string,
+  tags?: string[],
+  autoTagged?: boolean
 ): Promise<DbFile | null> => {
   const userId = getEffectiveUserId();
   if (!userId) throw new Error('User must be authenticated to upload files');
@@ -334,6 +442,8 @@ export const uploadFile = async (
     is_starred: false,
     trashed: false,
     trashed_at: null,
+    tags: tags || [],
+    auto_tagged: Boolean(autoTagged),
     extracted_text: extractedSnippet || `File: ${file.name} (Uploaded to ${folderId || 'Root'})`,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -487,6 +597,39 @@ export const renameFile = async (fileId: string, newFileName: string): Promise<b
   } catch (error) {
     console.error('Error renaming file in Firestore:', error);
     throw error;
+  }
+};
+
+/** Persist AI-generated topic tags on a document. */
+export const updateFileTags = async (
+  fileId: string,
+  tags: string[],
+  autoTagged = true
+): Promise<boolean> => {
+  try {
+    await updateDoc(doc(db, 'files', fileId), {
+      tags,
+      auto_tagged: autoTagged,
+      updated_at: new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error updating file tags in Firestore:', error);
+    return false;
+  }
+};
+
+/** Re-file a document into a different subject folder (used by auto-routing). */
+export const moveFileToFolder = async (fileId: string, folderId: string): Promise<boolean> => {
+  try {
+    await updateDoc(doc(db, 'files', fileId), {
+      folder_id: folderId,
+      updated_at: new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error moving file in Firestore:', error);
+    return false;
   }
 };
 

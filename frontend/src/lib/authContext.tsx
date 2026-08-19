@@ -18,6 +18,8 @@ export interface UserProfile {
   fullName: string;
   email: string;
   avatarUrl?: string;
+  /** Id of a built-in avatar character, e.g. "milo". Beats avatarUrl when set. */
+  avatarPreset?: string;
   role?: string;
   usn?: string;
   sem?: string;
@@ -84,6 +86,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           fullName: data.fullName || data.full_name || displayName || 'Scholar Student',
           email: data.email || userEmail || '',
           avatarUrl: data.avatarUrl || data.avatar_url || photoURL || '',
+          avatarPreset: data.avatarPreset || '',
           role: data.role || 'Academic Scholar',
           usn: data.usn || extraMeta?.usn || '1FA23CS042',
           sem: data.sem || '6th Semester',
