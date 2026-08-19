@@ -49,7 +49,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isPasswordRecovery: boolean;
-  signUp: (email: string, password: string, fullName: string, usn?: string, branch?: string) => Promise<{ error: Error | null; needsEmailVerification?: boolean }>;
+  signUp: (email: string, password: string, fullName: string, usn?: string, branch?: string, sem?: string) => Promise<{ error: Error | null; needsEmailVerification?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -227,7 +227,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     password: string,
     fullName: string,
     usn?: string,
-    branch?: string
+    branch?: string,
+    sem?: string
   ) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -247,7 +248,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         avatarUrl: '',
         role: 'Academic Scholar',
         usn: usn?.trim() || '1FA23CS042',
-        sem: '6th Semester',
+        sem: sem?.trim() || '1st Semester',
         branch: branch?.trim() || 'Computer Science & Engineering',
         studyStreak: 15,
         createdAt: new Date().toISOString()
