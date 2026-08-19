@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { SearchInput } from './search-input';
 import FolderCard from './folder';
-import { FolioLogo } from './logo';
+import { FolioLogo, FolioMark } from './logo';
 import WeakSpotAnalysis, { SubjectEngagement } from './weak-spot-analysis';
 import * as FirebaseService from '../../lib/firebaseService';
 import * as Rag from '../../lib/ragIndex';
@@ -11,6 +11,9 @@ import { StreakState, getStreakState, recordStudyActivity } from '../../lib/stre
 import { classifyDocument } from '../../lib/autoTag';
 import { AVATAR_PRESETS, resolveAvatarSrc } from '../../lib/avatars';
 import { MagneticCursor } from './magnetic-cursor';
+import { ChatMarkdown } from './chat-markdown';
+import AnimatedGradientBackground from './animated-gradient-background';
+import { GlassCard } from './glass-card';
 import { useSpeechRecognition } from '../../lib/useSpeechRecognition';
 import { useAuth } from '../../lib/authContext';
 import {
@@ -71,6 +74,8 @@ import {
   CalendarDays,
   HardDrive,
   Star,
+  ScrollText,
+  ShieldCheck,
   Archive,
   Share2,
   Mic,
@@ -179,6 +184,73 @@ export interface DesktopWebAppProps {
   onLogout?: () => void;
 }
 
+/** Greetings and small talk should get a human reply, not a study briefing. */
+const SMALL_TALK = /^\s*(hi|hey+|hello|yo|hiya|sup|howdy|good\s+(morning|afternoon|evening|night)|how(\s+are|'?s)\s+(you|it going)|what'?s\s+up|thanks?|thank\s+you|ty|ok(ay)?|cool|nice|bye|goodbye|see\s+ya)\b[\s!.?]*$/i;
+
+/** Turn a raw AI service error into something a student can act on. */
+const describeAiError = (message: string): string => {
+  const m = (message || '').toLowerCase();
+
+  if (m.includes('unregistered callers') || m.includes('api key') || m.includes('api_key_invalid') || m.includes('permission_denied')) {
+    return 'The Gemini API key is missing or invalid, so I answered from your indexed notes instead. Add `VITE_GEMINI_API_KEY` to your `.env` file and restart the dev server to turn on full AI answers.';
+  }
+  if (m.includes('quota') || m.includes('rate limit') || m.includes('resource_exhausted')) {
+    return 'The Gemini API quota is used up for now, so I answered from your indexed notes instead.';
+  }
+  if (m.includes('failed to fetch') || m.includes('network') || m.includes('load failed')) {
+    return 'I could not reach the Gemini service, so I answered from your indexed notes instead.';
+  }
+  return `The AI service returned an error, so I answered from your indexed notes instead. Details: ${message}`;
+};
+
+/**
+ * Compose a genuinely useful answer without the AI service: friendly for small
+ * talk, grounded in the retrieved passages when the notes cover the question,
+ * and otherwise a clear next step.
+ */
+const buildOfflineAnswer = (question: string, matches: Rag.RagMatch[]): string => {
+  const q = question.trim();
+
+  if (SMALL_TALK.test(q)) {
+    return [
+      'Hey! I am your FOLIO study assistant.',
+      '',
+      'Ask me anything about the notes you have uploaded and I will answer from them. You can also:',
+      '- Attach a document with the paperclip or folder icon',
+      '- Send the question to Google with the Search button',
+      '- Tap the mic and just say it out loud'
+    ].join('\n');
+  }
+
+  if (matches.length) {
+    const lines = ['Here is what your indexed notes say about this.', ''];
+    matches.slice(0, 3).forEach(match => {
+      const passage = match.chunk.text.trim();
+      lines.push(`## ${match.chunk.fileTitle}`);
+      lines.push(passage.length > 420 ? `${passage.slice(0, 420).trim()}...` : passage);
+      lines.push('');
+    });
+    return lines.join('\n').trim();
+  }
+
+  return [
+    `I could not find anything about **${q}** in your indexed notes yet.`,
+    '',
+    'Here is how to get an answer:',
+    '- Upload the relevant PDF or notes into a subject folder, then ask again',
+    '- Attach a file to this question with the paperclip or folder icon',
+    '- Use the Search button to look it up on the web'
+  ].join('\n');
+};
+
+/** Tidy whitespace without stripping the structure we asked the model for. */
+const normalizeAnswer = (text: string): string =>
+  text
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
 export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppProps = {}) {
   const { user: authUser, updateProfile: authUpdateProfile, updatePassword: authUpdatePassword } = useAuth();
 
@@ -188,11 +260,11 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Trash Bin & Browser Status Link State
   const [trashedFiles, setTrashedFiles] = useState<AcademicFile[]>([]);
   const [trashedFolders, setTrashedFolders] = useState<SubjectFolder[]>([]);
-  const [hoveredStatusLink, setHoveredStatusLink] = useState<string | null>(null);
 
   // Folder multi-select & bulk actions
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([]);
@@ -208,6 +280,9 @@ export default function DesktopWebApp({ currentUser, onLogout }: DesktopWebAppPr
   const [dismissedStorageAlert, setDismissedStorageAlert] = useState(false);
   const [previewStorageAlert, setPreviewStorageAlert] = useState(false);
   const storageSectionRef = useRef<HTMLDivElement>(null);
+
+  // The scrolling content column, so page changes can glide back to the top.
+  const contentScrollRef = useRef<HTMLDivElement>(null);
 
   // RAG index revision counter — bumped whenever embeddings are added or purged
   // so every dependent view (storage, analytics, weak spots) recomputes.
@@ -1316,6 +1391,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     { id: 'analytics', title: 'Analytics', icon: BarChart2 },
     { id: 'ai-studio', title: 'AI Studio', icon: Bot, badge: 'RAG', badgeColor: 'bg-slate-800 text-white' },
     { id: 'trash', title: 'Trash', icon: Trash2, badge: trashCount, badgeColor: trashCount > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-400' },
+    { id: 'terms', title: 'Terms & Conditions', icon: ScrollText },
+    { id: 'privacy', title: 'Privacy Policy', icon: ShieldCheck },
     { id: 'settings', title: 'Settings', icon: Settings },
   ];
 
@@ -1367,6 +1444,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         { id: 'p-profile', title: 'Scholar Profile', subtitle: 'View & edit student details', icon: User, tabId: 'profile' },
         { id: 'p-settings', title: 'Workspace Settings & Backup', subtitle: 'Storage utilization & defaults', icon: Settings, tabId: 'settings' },
         { id: 'p-trash', title: 'Trash Bin', subtitle: 'Recover deleted files & documents', icon: Trash2, tabId: 'trash' },
+        { id: 'p-terms', title: 'Terms & Conditions', subtitle: 'Usage terms, data handling & AI disclaimer', icon: ScrollText, tabId: 'terms' },
+        { id: 'p-privacy', title: 'Privacy Policy', subtitle: 'What FOLIO stores, where it lives & your rights', icon: ShieldCheck, tabId: 'privacy' },
       ];
 
       pageItems.forEach(p => {
@@ -1930,6 +2009,22 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       .map(a => `[Attached file: ${a.name}]\n${a.text}`)
       .join('\n\n');
 
+    // No key configured: answer locally rather than firing a request that is
+    // guaranteed to come back as "unregistered caller".
+    if (!GEMINI_API_KEY) {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: buildOfflineAnswer(q, matches),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          sources: sourceTitles
+        }
+      ]);
+      setIsAiGenerating(false);
+      return;
+    }
+
     try {
       // Direct REST API Call for guaranteed browser compatibility
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
@@ -1939,11 +2034,18 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
           contents: [{
             parts: [{
               text: [
-                'You are an expert AI Study Studio assistant embedded in FOLIO - Smart Student Study Studio.',
-                "Answer the student's question concisely, clearly, and naturally using clean plain text without any markdown asterisks (*), hashtags (#), or formatting code blocks.",
+                'You are the FOLIO Study Studio assistant, helping a university student with their coursework.',
+                '',
+                'How to answer:',
+                '- If the message is a greeting or small talk, reply in one friendly sentence. No headings, no bullets.',
+                '- Otherwise open with one or two sentences that answer the question directly.',
+                '- Break anything longer into short sections using "## Section title" headings.',
+                '- Use "- " for lists and "1. " for ordered steps. Keep each point to one line where you can.',
+                '- Bold key terms with **term**, and wrap code, commands, formulas and identifiers in `backticks`.',
+                '- Never restate the question, never pad, and never end with a sign-off.',
                 attachmentContext ? `\nThe student attached these files to this question:\n${attachmentContext}` : '',
-                notesContext ? `\nRelevant passages retrieved from the student own uploaded notes:\n${notesContext}\nPrefer these passages when they are relevant, and say which note you used.` : '',
-                `\nStudent Question: ${q}`
+                notesContext ? `\nPassages retrieved from the student's own uploaded notes:\n${notesContext}\nPrefer these passages when they are relevant, and name the note you used.` : '',
+                `\nStudent question: ${q}`
               ].filter(Boolean).join('\n')
             }]
           }]
@@ -1960,22 +2062,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         responseText = "I'm sorry, I couldn't generate a response for your question right now.";
       }
 
-      // Clean out residual markdown symbols (*, #, `, _, -, >)
-      const cleanText = (text: string) => {
-        return text
-          .replace(/\*\*(.*?)\*\*/g, '$1')       // bold **text** -> text
-          .replace(/\*(.*?)\*/g, '$1')           // italic *text* -> text
-          .replace(/__([\s\S]*?)__/g, '$1')       // bold __text__ -> text
-          .replace(/_([\s\S]*?)_/g, '$1')         // italic _text_ -> text
-          .replace(/`{1,3}([\s\S]*?)`{1,3}/g, '$1')// code blocks `text` -> text
-          .replace(/^#{1,6}\s*/gm, '')           // headers # Header -> Header
-          .replace(/^\s*[\*\-\+]\s+/gm, '• ')    // bullet points * -> •
-          .replace(/\*{1,3}/g, '')               // stray asterisks
-          .replace(/_{1,2}/g, '')                // stray underscores
-          .trim();
-      };
-
-      const cleanedResponse = cleanText(responseText);
+      // The reply is rendered by <ChatMarkdown>, so the structure is kept —
+      // only whitespace is tidied up.
+      const cleanedResponse = normalizeAnswer(responseText);
 
       setChatMessages(prev => [
         ...prev,
@@ -1988,21 +2077,15 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       ]);
     } catch (err: any) {
       console.error("Gemini AI Error:", err);
-      let fallbackText = `⚠️ **Gemini AI Service Alert**: ${err?.message || "Unable to reach Gemini AI"}.\n\nBelow is retrieved study notes context for your query "${q}":\n\n`;
-      if (q.toLowerCase().includes('ip addressing') || q.toLowerCase().includes('networks')) {
-        fallbackText += "🌐 **IP Addressing Principles**:\n- **IPv4**: 32-bit address divided into 4 octets.\n- **CIDR Notation**: Classless Inter-Domain Routing (e.g. 192.168.1.0/24).\n- **Subnetting**: Enables efficient segmentation of IP address space.";
-      } else if (q.toLowerCase().includes('normalization') || q.toLowerCase().includes('3nf') || q.toLowerCase().includes('dbms')) {
-        fallbackText += "🗄️ **3NF Normalization Rules**:\n- Must be in **2NF** (no partial key dependencies).\n- All non-prime attributes must non-transitively depend on primary keys.";
-      } else if (notesContext) {
-        fallbackText += notesContext;
-      } else {
-        fallbackText += `Answers and study notes compiled for academic concept: **${q}**. Clear structured explanation provided for revision.`;
-      }
+
+      const note = describeAiError(err?.message || 'Unable to reach the AI service');
+      const answer = buildOfflineAnswer(q, matches);
+
       setChatMessages(prev => [
         ...prev,
         {
           sender: 'ai',
-          text: fallbackText,
+          text: `${answer}\n\n---\n${note}`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           sources: sourceTitles
         }
@@ -2024,6 +2107,28 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
   // fresh key whenever the view swaps out the interactive elements.
   const magneticRescanKey = `${activeTab}|${openedFolderId || ''}`;
 
+  // Every page toggle returns the reader to the top, smoothly. Skipped when the
+  // URL points at a section (e.g. /settings#storage), which scrolls itself.
+  useEffect(() => {
+    if (activeSection) return;
+    contentScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab, openedFolderId, activeSection]);
+
+  /** Show a goodbye card for a beat, then actually end the session. */
+  const handleLogout = () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    setIsMobileNavOpen(false);
+    setIsStreakPanelOpen(false);
+
+    window.setTimeout(() => {
+      if (onLogout) onLogout();
+      else setIsLoggingOut(false);
+    }, 1600);
+  };
+
+  const profileFirstName = (studentProfile.name || 'Scholar').trim().split(/\s+/)[0];
+
   const profileInitials = (studentProfile.name || 'Folio Scholar')
     .trim()
     .split(/\s+/)
@@ -2043,7 +2148,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       blendMode="exclusion"
       rescanKey={magneticRescanKey}
     >
-    <div className="flex h-screen w-screen bg-[#f4f7fa] text-slate-800 overflow-hidden antialiased">
+    <div className="flex h-[100dvh] w-full bg-[#f4f7fa] text-slate-800 overflow-hidden antialiased">
 
       {/* Mobile navigation backdrop */}
       {isMobileNavOpen && (
@@ -2068,8 +2173,6 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                onMouseEnter={() => setHoveredStatusLink('sidebar-toggle')}
-                onMouseLeave={() => setHoveredStatusLink(null)}
                 className="hidden lg:block p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                 title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
               >
@@ -2103,10 +2206,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     data-magnetic
                     onClick={() => {
                       goToTab(item.id as TabId);
-                      setHoveredStatusLink('#' + item.id);
                     }}
-                    onMouseEnter={() => setHoveredStatusLink('#' + item.id)}
-                    onMouseLeave={() => setHoveredStatusLink(null)}
                     title={isSidebarCollapsed ? item.title : undefined}
                     className={`w-full flex items-center rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer group ${isSidebarCollapsed ? 'justify-center p-3 hover:bg-slate-800 hover:scale-105 active:scale-95' : 'justify-between px-3.5 py-3'
                       } ${isActive
@@ -2142,10 +2242,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               } ${isSidebarCollapsed ? 'justify-center hover:scale-105' : ''}`}
             onClick={() => {
               goToTab('profile');
-              setHoveredStatusLink('#profile');
             }}
-            onMouseEnter={() => setHoveredStatusLink('#profile')}
-            onMouseLeave={() => setHoveredStatusLink(null)}
           >
             {avatarSrc ? (
               <img src={avatarSrc} alt="Avatar" className="w-8 h-8 rounded-full object-cover shrink-0 group-hover:scale-110 transition-transform" />
@@ -2165,15 +2262,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           <button
             data-magnetic
-            onClick={() => {
-              if (onLogout) {
-                onLogout();
-              } else {
-                showNotification("LOGGED OUT", "Session terminated safely", "info");
-              }
-            }}
-            onMouseEnter={() => setHoveredStatusLink('#logout')}
-            onMouseLeave={() => setHoveredStatusLink(null)}
+            onClick={handleLogout}
             title={isSidebarCollapsed ? 'Logout' : undefined}
             className={`w-full flex items-center rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer group ${isSidebarCollapsed ? 'justify-center p-2.5 hover:scale-105' : 'justify-between px-3 py-2'
               }`}
@@ -2281,8 +2370,6 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <button
                 data-magnetic
                 onClick={() => setIsStreakPanelOpen(o => !o)}
-                onMouseEnter={() => setHoveredStatusLink('#streak')}
-                onMouseLeave={() => setHoveredStatusLink(null)}
                 className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold shadow-2xs transition-all cursor-pointer ${
                   streak.activeToday
                     ? 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
@@ -2372,8 +2459,6 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   e.preventDefault();
                   goToTab('settings', { section: 'storage' });
                 }}
-                onMouseEnter={() => setHoveredStatusLink('/settings#storage')}
-                onMouseLeave={() => setHoveredStatusLink(null)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black shadow-xs transition-all cursor-pointer"
               >
                 <HardDrive className="w-3.5 h-3.5" />
@@ -2396,7 +2481,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         )}
 
         {/* Content View Switcher */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+        <div ref={contentScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth p-3 sm:p-6 md:p-8">
 
           {/* DASHBOARD TAB */}
           {activeTab === 'dashboard' && (
@@ -2408,9 +2493,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 <div className="lg:col-span-2 space-y-4">
 
                   {/* 1. Welcome Card (Compact) */}
-                  <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-between gap-4 shrink-0">
-                    <div>
-                      <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
+                  <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-between gap-3 sm:gap-4 shrink-0">
+                    <div className="min-w-0">
+                      <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-slate-900 break-words">
                         Welcome back, {studentProfile.name}
                       </h1>
 
@@ -2874,7 +2959,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                       <div>
                         <div className="flex items-center gap-3">
-                          <h1 className="text-2xl font-black text-slate-900">
+                          <h1 className="text-lg sm:text-2xl font-black text-slate-900 break-words">
                             {currentOpenedFolder.name}
                           </h1>
                           <span className="px-2.5 py-1 text-xs font-black rounded-md border border-slate-300 bg-slate-100 text-slate-800">
@@ -2894,8 +2979,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       }}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-md hover:bg-slate-800 transition-all cursor-pointer"
                     >
-                      <Upload className="w-4 h-4" />
-                      <span>Upload File to Folder</span>
+                      <Upload className="w-4 h-4 shrink-0" />
+                      <span className="truncate">Upload File to Folder</span>
                     </button>
                   </div>
 
@@ -3150,7 +3235,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           {/* AI STUDIO TAB */}
           {activeTab === 'ai-studio' && (
-            <div className="h-[calc(100dvh-140px)] sm:h-[calc(100dvh-120px)] w-full max-w-4xl mx-auto flex flex-col justify-between py-2 animate-in fade-in duration-300">
+            <div className="h-[calc(100dvh-150px)] sm:h-[calc(100dvh-120px)] w-full max-w-4xl mx-auto flex flex-col justify-between py-1 sm:py-2 animate-in fade-in duration-300">
 
               {/* Clean Native Page Header */}
               <div className="pb-4 mb-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3212,14 +3297,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       </div>
                     )}
 
-                    <div
-                      className={`text-sm leading-relaxed whitespace-pre-wrap ${msg.sender === 'user'
-                          ? 'bg-slate-900 text-white font-medium px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-xs max-w-[85%]'
-                          : 'text-slate-800 pl-1 max-w-[95%]'
-                        }`}
-                    >
-                      {msg.text}
-                    </div>
+                    {msg.sender === 'user' ? (
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap bg-slate-900 text-white font-medium px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-xs max-w-[85%]">
+                        {msg.text}
+                      </div>
+                    ) : (
+                      <ChatMarkdown content={msg.text} className="pl-1 max-w-[95%]" />
+                    )}
 
                     {/* Notes the answer was grounded in */}
                     {msg.sender === 'ai' && msg.sources && msg.sources.length > 0 && (
@@ -3457,8 +3541,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     { name: 'Mathematics', percent: 8 },
                     { name: 'Others', percent: 3 },
                   ].map((item, idx) => (
-                    <div key={item.name} className="flex items-center justify-between gap-4">
-                      <span className="w-36 text-xs font-bold text-slate-800 truncate font-mono">
+                    <div key={item.name} className="flex items-center justify-between gap-2 sm:gap-4">
+                      <span className="w-20 sm:w-36 text-[11px] sm:text-xs font-bold text-slate-800 truncate font-mono shrink-0">
                         {item.name}
                       </span>
                       <div className="flex-1 h-5 bg-slate-100 rounded overflow-hidden p-0.5 border border-slate-200">
@@ -3470,7 +3554,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                           }}
                         />
                       </div>
-                      <span className="w-12 text-right text-xs font-mono font-bold text-slate-700">
+                      <span className="w-10 sm:w-12 text-right text-[11px] sm:text-xs font-mono font-bold text-slate-700 shrink-0">
                         {item.percent}%
                       </span>
                     </div>
@@ -3532,11 +3616,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       { topic: 'TCP / IP', count: 45 },
                       { topic: 'Neural Networks', count: 35 },
                     ].map((item, idx) => (
-                      <div key={item.topic} className="flex items-center gap-4">
-                        <span className="w-36 text-xs font-bold text-slate-700 font-mono truncate">
+                      <div key={item.topic} className="flex items-center gap-2 sm:gap-4">
+                        <span className="w-20 sm:w-36 text-[11px] sm:text-xs font-bold text-slate-700 font-mono truncate shrink-0">
                           {item.topic}
                         </span>
-                        <div className="w-48 h-4 bg-slate-100 rounded overflow-hidden p-0.5 border border-slate-200">
+                        <div className="flex-1 sm:flex-none sm:w-48 h-4 bg-slate-100 rounded overflow-hidden p-0.5 border border-slate-200">
                           <div
                             className="h-full bg-slate-900 rounded-xs transition-all duration-1000 ease-out shadow-xs"
                             style={{
@@ -3576,7 +3660,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </div>
 
                   <div className="text-center sm:text-left flex-1">
-                    <h2 className="text-2xl font-black text-slate-900">{studentProfile.name}</h2>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 break-words">{studentProfile.name}</h2>
                     <p className="text-xs text-slate-500 mt-1 font-medium">{studentProfile.email}</p>
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
                       <span className="px-3 py-1 text-xs font-bold rounded-md bg-slate-100 text-slate-800 border border-slate-300">
@@ -3746,7 +3830,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
-                        onClick={() => showNotification("LOGGED OUT", "Session terminated safely", "info")}
+                        onClick={handleLogout}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all cursor-pointer"
                       >
                         <LogOut className="w-4 h-4" />
@@ -4056,6 +4140,212 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             </div>
           )}
 
+          {/* TERMS & CONDITIONS TAB */}
+          {activeTab === 'terms' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
+              <div className="p-4 sm:p-8 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-6">
+
+                {/* Header */}
+                <div className="flex items-start gap-3 pb-5 border-b border-slate-200">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200 shrink-0">
+                    <ScrollText className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-bold text-slate-900">Terms &amp; Conditions</h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      The agreement covering your use of FOLIO Studio, your documents, and the AI assistant
+                    </p>
+                    <p className="text-[11px] font-mono font-bold text-slate-400 mt-2">
+                      Last updated: 19 August 2026 &bull; Version 1.0
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sections */}
+                <div className="space-y-5">
+                  {[
+                    {
+                      title: '1. Acceptance of Terms',
+                      body: 'By creating a FOLIO Studio account or uploading any material to the workspace, you agree to these terms. If you do not agree, stop using the workspace and delete your account from the Profile page.'
+                    },
+                    {
+                      title: '2. Eligibility & Your Account',
+                      body: 'FOLIO Studio is intended for students and educators. You are responsible for the accuracy of your profile details, for keeping your password confidential, and for all activity that happens under your account. Tell us immediately if you believe your account has been accessed by someone else.'
+                    },
+                    {
+                      title: '3. Your Content Stays Yours',
+                      body: 'You keep full ownership of every note, PDF, assignment and document you upload. You grant FOLIO Studio only the permission it needs to operate: to store your files, index their text so search and the AI assistant can retrieve them, and display them back to you. We do not sell your content and we do not use it to train third-party models.'
+                    },
+                    {
+                      title: '4. Acceptable Use',
+                      body: 'Do not upload material you have no right to share, content that infringes copyright, malware, or anything unlawful. Do not use the workspace to submit AI-generated work in violation of your institution academic integrity policy. Accounts used for these purposes may be suspended.'
+                    },
+                    {
+                      title: '5. AI Assistant Disclaimer',
+                      body: 'The AI Studio assistant generates answers from your indexed notes and a third-party language model. Its responses can be incomplete or wrong, and it is a study aid — not a substitute for your lectures, textbooks or your own judgement. Always verify anything you rely on for an assessment. Questions you send are processed by the configured AI provider.'
+                    },
+                    {
+                      title: '6. Storage, Trash & Deletion',
+                      body: 'Each workspace has a storage quota and a document index quota; FOLIO warns you once either passes 85% of capacity. Deleted folders and files are soft-deleted to the Trash bin and can be restored. Emptying the Trash, or deleting an item permanently, removes it and its search embeddings for good and cannot be undone.'
+                    },
+                    {
+                      title: '7. Sharing',
+                      body: 'When you share a folder or an AI conversation, you choose the recipient and the channel. Anything you send leaves the workspace and is outside our control, so only share material you have the right to pass on.'
+                    },
+                    {
+                      title: '8. Availability',
+                      body: 'FOLIO Studio is provided on an "as available" basis. Cloud sync, storage and AI features depend on third-party services that may be interrupted, and features may change or be withdrawn. Keep your own backups of anything important — the Settings page can export a full snapshot at any time.'
+                    },
+                    {
+                      title: '9. Changes to These Terms',
+                      body: 'We may update these terms as the workspace evolves. The version and date at the top of this page always reflect the current agreement, and continued use after an update means you accept it.'
+                    },
+                  ].map((section) => (
+                    <div key={section.title} className="space-y-1.5">
+                      <h3 className="text-sm font-black text-slate-900 tracking-tight">
+                        {section.title}
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {section.body}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer note */}
+                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-xs text-slate-600">
+                    <span className="font-bold text-slate-900">Questions about these terms?</span>
+                    <span className="block text-[11px] text-slate-500 mt-0.5">
+                      Reach the workspace administrator at support@folio.edu
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => goToTab('settings', { section: 'storage' })}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+                  >
+                    <HardDrive className="w-4 h-4 text-slate-600" />
+                    <span>Storage &amp; backup</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* PRIVACY POLICY TAB */}
+          {activeTab === 'privacy' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
+              <div className="p-4 sm:p-8 rounded-xl border border-slate-200 bg-white shadow-2xs space-y-6">
+
+                {/* Header */}
+                <div className="flex items-start gap-3 pb-5 border-b border-slate-200">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200 shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-xl font-bold text-slate-900">Privacy Policy</h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      What FOLIO Studio collects, where it is stored, and the control you keep over it
+                    </p>
+                    <p className="text-[11px] font-mono font-bold text-slate-400 mt-2">
+                      Last updated: 19 August 2026 &bull; Version 1.0
+                    </p>
+                  </div>
+                </div>
+
+                {/* Data summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { label: 'Account', value: 'Name, email, USN, branch, semester', icon: User },
+                    { label: 'Documents', value: 'Files you upload and their extracted text', icon: FileText },
+                    { label: 'On this device', value: 'Search index, study streak, preferences', icon: HardDrive },
+                  ].map((item) => (
+                    <div key={item.label} className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                      <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        <item.icon className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{item.label}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-800 mt-1.5 leading-relaxed">
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Sections */}
+                <div className="space-y-5">
+                  {[
+                    {
+                      title: '1. What We Collect',
+                      body: 'Account details you provide (name, email, USN, branch, semester and avatar), the documents you upload along with the text extracted from them, and the study activity that powers your streak, analytics and weak spot reports. We do not collect your location, your contacts, or anything from outside the workspace.'
+                    },
+                    {
+                      title: '2. Where Your Data Lives',
+                      body: 'Your profile, folders and documents are stored in Google Firebase (Firestore and Cloud Storage) under your own user id. Firestore security rules isolate every account, so no other student can read your files. Your search index, study streak and workspace preferences never leave this browser.'
+                    },
+                    {
+                      title: '3. How the AI Assistant Uses Your Notes',
+                      body: 'Retrieval happens locally: your documents are indexed in this browser and the matching passages are selected here. When you send a question, that question and the matched passages are transmitted to the configured AI provider to compose the answer. Turn the assistant off simply by not using AI Studio; your notes stay indexed for search either way.'
+                    },
+                    {
+                      title: '4. Auto-Tagging & Uploads',
+                      body: 'If auto-tagging is enabled in Settings, the filename and a short text sample from each upload are sent to the AI provider to suggest a subject folder and topic tags. Disable the toggle in Settings and every upload is filed exactly where you put it, with nothing sent anywhere.'
+                    },
+                    {
+                      title: '5. What We Never Do',
+                      body: 'We do not sell your data, we do not show you advertising, we do not share your documents with other students or institutions, and we do not use your coursework to train AI models.'
+                    },
+                    {
+                      title: '6. Sharing Is Always Your Choice',
+                      body: 'Folders and AI conversations leave the workspace only when you choose to share them, and only through the channel you pick. Once shared, the content is in the recipient hands and can no longer be recalled by FOLIO.'
+                    },
+                    {
+                      title: '7. Retention & Deletion',
+                      body: 'Deleted items sit in the Trash bin until you restore them or delete them permanently. Permanent deletion removes the file, its stored copy and its search embeddings. Deleting your account from the Profile page removes your profile and documents; local data clears when you clear this browser storage.'
+                    },
+                    {
+                      title: '8. Your Rights',
+                      body: 'You can view and edit your profile at any time, export a complete JSON snapshot of your workspace from Settings, and delete individual documents, whole folders or your entire account. If you need a copy of everything we hold, the export in Settings is the fastest route.'
+                    },
+                    {
+                      title: '9. Changes to This Policy',
+                      body: 'If what we collect or how we use it changes, this page and its version date are updated first. Continued use after an update means you accept the revised policy.'
+                    },
+                  ].map((section) => (
+                    <div key={section.title} className="space-y-1.5">
+                      <h3 className="text-sm font-black text-slate-900 tracking-tight">
+                        {section.title}
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {section.body}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer note */}
+                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-xs text-slate-600">
+                    <span className="font-bold text-slate-900">Want a copy of your data?</span>
+                    <span className="block text-[11px] text-slate-500 mt-0.5">
+                      Export a full workspace snapshot, or reach us at privacy@folio.edu
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleBackupFiles}
+                    disabled={isBackingUp}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer shrink-0 self-start sm:self-auto disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4 text-slate-600" />
+                    <span>{isBackingUp ? 'Preparing...' : 'Export my data'}</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
           {/* TRASH TAB */}
           {activeTab === 'trash' && (
             <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300">
@@ -4067,7 +4357,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Trash Bin Storage</span>
                   </div>
-                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">Trash Bin & File Recovery</h1>
+                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Trash Bin & File Recovery</h1>
                   <p className="text-xs font-medium text-slate-500 mt-1">
                     Deleted files are safely kept here. Restore items back to your subject folders or permanently remove them.
                   </p>
@@ -4489,8 +4779,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
       {/* FULL IN-APP DOCUMENT / PDF READER MODAL */}
       {readingFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 animate-in fade-in duration-200">
-          <div className={`w-full flex flex-col bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden transition-all ${isReaderFullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[90vh] max-w-5xl'
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-6 animate-in fade-in duration-200">
+          <div className={`w-full flex flex-col bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden transition-all ${isReaderFullscreen ? 'h-full w-full max-w-none rounded-none' : 'h-[92dvh] sm:h-[90vh] max-w-5xl'
             }`}>
 
             {/* Highlighted Banner when redirected from search */}
@@ -4505,25 +4795,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
             )}
 
             {/* Reader Header */}
-            <div className="p-4 px-6 bg-slate-900 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-slate-800 text-white flex items-center justify-center">
+            <div className="p-3 sm:p-4 sm:px-6 bg-slate-900 text-white flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800 text-white flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5 font-bold" />
                 </div>
-                <div>
-                  <h3 className="font-bold text-sm text-white">{readingFile.title}</h3>
-                  <p className="text-xs text-slate-400">In-App Reader • {readingFile.size} • Source: {readingFile.source}</p>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-xs sm:text-sm text-white truncate">{readingFile.title}</h3>
+                  <p className="text-[10px] sm:text-xs text-slate-400 truncate">In-App Reader • {readingFile.size} • Source: {readingFile.source}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                 {!readingFile.fileUrl && (
                   <button
                     onClick={() => handleCopySnippet(readingFile.contentSnippet || '')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold transition-all cursor-pointer"
                   >
                     {copiedSnippet ? <Check className="w-3.5 h-3.5 text-slate-300" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedSnippet ? 'Copied' : 'Copy Text'}</span>
+                    <span className="hidden sm:inline">{copiedSnippet ? 'Copied' : 'Copy Text'}</span>
                   </button>
                 )}
 
@@ -4533,7 +4823,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   title="Download File to Local Explorer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download</span>
+                  <span className="hidden sm:inline">Download</span>
                 </button>
 
                 <button
@@ -4542,7 +4832,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   title="Move document to trash"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Trash</span>
+                  <span className="hidden sm:inline">Trash</span>
                 </button>
 
                 <button
@@ -5134,11 +5424,33 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         </div>
       )}
 
-      {/* Browser Link Status Bar (Bottom-Right Preview) */}
-      {hoveredStatusLink && (
-        <div className="fixed bottom-0 right-0 z-50 bg-black text-slate-300 text-[11px] font-mono px-3 py-1 border-t border-l border-neutral-800 rounded-tl-md shadow-2xl pointer-events-none transition-all animate-in fade-in slide-in-from-bottom-1 duration-150 flex items-center gap-1.5">
-          <span className="text-sky-400 font-medium">http://localhost:5173/</span>
-          <span className="text-white font-bold">{hoveredStatusLink}</span>
+      {/* SIGNING OUT OVERLAY */}
+      {isLoggingOut && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-6 text-center animate-in fade-in duration-200">
+
+          {/* Same animated gradient backdrop as the sign-in screen */}
+          <AnimatedGradientBackground Breathing />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[26rem] h-[26rem] bg-blue-500/25 rounded-full blur-[120px] pointer-events-none" />
+
+          <GlassCard className="relative z-10 w-full max-w-sm items-center gap-5 rounded-3xl px-6 py-8 border-white/25 bg-gradient-to-br from-white/30 via-white/10 to-white/20 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_24px_70px_-20px_rgba(2,6,23,0.75)] ring-1 ring-inset ring-white/10 overflow-hidden">
+            <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+
+            <FolioMark size={56} className="relative z-10 rounded-2xl shadow-xl shadow-blue-500/20 animate-pulse" />
+
+            <div className="relative z-10 space-y-1.5">
+              <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                Logging out, {profileFirstName}...
+              </h2>
+              <p className="text-xs font-medium text-slate-200/80 max-w-xs mx-auto">
+                Your notes, folders and study streak are saved. See you at your next session.
+              </p>
+            </div>
+
+            <div className="relative z-10 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-slate-300/70">
+              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white/80 rounded-full animate-spin" />
+              <span>Closing workspace</span>
+            </div>
+          </GlassCard>
         </div>
       )}
 

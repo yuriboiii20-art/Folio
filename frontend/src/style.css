@@ -3,6 +3,8 @@
 
 @theme inline {
   --radius-full: 999px;
+  /* Consumed by <GlassCard> for its frosted panel + border. */
+  --color-primary-foreground: #ffffff;
 }
 
 @layer base {
@@ -104,6 +106,30 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Scrollbar for frosted popovers: the global light thumb reads as a hard
+   grey bar against dark glass. */
+.glass-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+.glass-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.glass-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.glass-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+}
+
+.glass-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.38);
 }
 
 @keyframes float {
