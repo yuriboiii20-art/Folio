@@ -8,30 +8,43 @@ import {
   sendPasswordResetEmail,
   updatePassword as firebaseUpdatePassword,
   onAuthStateChanged,
-  updateProfile as firebaseUpdateAuthProfile
+  updateProfile as firebaseUpdateAuthProfile,
+  fetchSignInMethodsForEmail,
+  GoogleAuthProvider,
+  EmailAuthProvider,
+  linkWithCredential
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebaseConfig';
+import {
+  normalizeEmail,
+  findOrCreateCanonicalUser,
+  reconcileAndMergeDuplicateAccounts,
+  isOAuthEmailVerified,
+  CanonicalUser
+} from './authLinkingService';
 
 export interface UserProfile {
-  id: string;
+  id: string; // Canonical user ID
   fullName: string;
   email: string;
+  email_normalized?: string;
   avatarUrl?: string;
-  /** Id of a built-in avatar character, e.g. "milo". Beats avatarUrl when set. */
   avatarPreset?: string;
   role?: string;
   usn?: string;
   sem?: string;
   branch?: string;
   studyStreak?: number;
+  primaryProvider?: string;
+  linkedProviders?: string[];
   createdAt?: string;
   auth_uid?: string;
 }
 
 export type AuthUser = {
   uid: string;
-  id: string;
+  id: string; // Canonical user ID
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
@@ -64,7 +77,7 @@ export const getCleanUserName = (fullName?: string | null, email?: string | null
     return fullName.trim().replace(/[\/\#\$\[\]\.]/g, '_').replace(/\s+/g, '_');
   }
   if (email && email.includes('@')) {
-    return email.split('@')[0].replace(/[\/\#\$\[\]\.]/g, '_');
+    return normalizeEmail(email).split('@')[0].replace(/[\/\#\$\[\]\.]/g, '_');
   }
   return uid || `user_${Date.now()}`;
 };
@@ -78,96 +91,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(false);
 
-  // Fetch or initialize user profile document in Firestore (stored under User Name document ID)
+  // Fetch or initialize canonical user profile in Firestore
   const fetchOrInitFirestoreProfile = async (
-    userId: string,
-    userEmail?: string | null,
-    displayName?: string | null,
-    photoURL?: string | null,
-    extraMeta?: { usn?: string; branch?: string }
+    firebaseUser: FirebaseUser,
+    provider: string = 'password',
+    extraMeta?: { fullName?: string; usn?: string; branch?: string; sem?: string }
   ): Promise<UserProfile> => {
-    const userDocId = getCleanUserName(displayName, userEmail, userId);
-
     try {
-      // 1. Check document named by User's Name
-      const userDocRef = doc(db, 'users', userDocId);
-      const userSnap = await getDoc(userDocRef);
+      const canonicalUser = await findOrCreateCanonicalUser(firebaseUser, provider, extraMeta);
 
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        return {
-          id: userDocId,
-          auth_uid: userId,
-          fullName: data.fullName || data.full_name || displayName || 'Scholar Student',
-          email: data.email || userEmail || '',
-          avatarUrl: data.avatarUrl || data.avatar_url || photoURL || '',
-          avatarPreset: data.avatarPreset || '',
-          role: data.role || 'Academic Scholar',
-          usn: data.usn || extraMeta?.usn || '1FA23CS042',
-          sem: data.sem || '6th Semester',
-          branch: data.branch || extraMeta?.branch || 'Computer Science & Engineering',
-          studyStreak: data.studyStreak !== undefined ? data.studyStreak : 15,
-          createdAt: data.createdAt || data.created_at || new Date().toISOString()
-        };
-      }
-
-      // 2. Also check if old document existed with raw uid
-      if (userDocId !== userId) {
-        const oldDocRef = doc(db, 'users', userId);
-        const oldSnap = await getDoc(oldDocRef);
-        if (oldSnap.exists()) {
-          const oldData = oldSnap.data();
-          const migratedProfile: UserProfile = {
-            id: userDocId,
-            auth_uid: userId,
-            fullName: oldData.fullName || oldData.full_name || displayName || 'Scholar Student',
-            email: oldData.email || userEmail || '',
-            avatarUrl: oldData.avatarUrl || oldData.avatar_url || photoURL || '',
-            role: oldData.role || 'Academic Scholar',
-            usn: oldData.usn || extraMeta?.usn || '1FA23CS042',
-            sem: oldData.sem || '6th Semester',
-            branch: oldData.branch || extraMeta?.branch || 'Computer Science & Engineering',
-            studyStreak: oldData.studyStreak !== undefined ? oldData.studyStreak : 15,
-            createdAt: oldData.createdAt || oldData.created_at || new Date().toISOString()
-          };
-          // Save with clean user name document ID
-          await setDoc(userDocRef, migratedProfile, { merge: true });
-          return migratedProfile;
-        }
-      }
-
-      // 3. Create new profile record in Firestore under User's Name
-      const fallbackName = displayName || (userEmail ? userEmail.split('@')[0] : 'Scholar Student');
-      const newFirestoreProfile: UserProfile = {
-        id: userDocId,
-        auth_uid: userId,
-        fullName: fallbackName,
-        email: userEmail || '',
-        avatarUrl: photoURL || '',
-        role: 'Academic Scholar',
-        usn: extraMeta?.usn || '1FA23CS042',
-        sem: '6th Semester',
-        branch: extraMeta?.branch || 'Computer Science & Engineering',
-        studyStreak: 15,
-        createdAt: new Date().toISOString()
+      const userProfile: UserProfile = {
+        id: canonicalUser.id,
+        auth_uid: firebaseUser.uid,
+        fullName: canonicalUser.fullName,
+        email: canonicalUser.email,
+        email_normalized: canonicalUser.email_normalized,
+        avatarUrl: canonicalUser.avatarUrl || '',
+        avatarPreset: canonicalUser.avatarPreset || '',
+        role: canonicalUser.role,
+        usn: canonicalUser.usn,
+        sem: canonicalUser.sem,
+        branch: canonicalUser.branch,
+        studyStreak: canonicalUser.studyStreak,
+        primaryProvider: canonicalUser.primaryProvider,
+        linkedProviders: canonicalUser.linkedProviders,
+        createdAt: canonicalUser.createdAt
       };
 
-      await setDoc(userDocRef, newFirestoreProfile, { merge: true });
-      return newFirestoreProfile;
+      // Trigger asynchronous duplicate reconciliation to merge any duplicate accounts
+      if (canonicalUser.email_normalized) {
+        reconcileAndMergeDuplicateAccounts(canonicalUser.email_normalized).catch(err => {
+          console.warn('Duplicate reconciliation note:', err);
+        });
+      }
+
+      return userProfile;
     } catch (e) {
-      console.warn('Firestore profile fetch/init error:', e);
-      const fallbackName = displayName || (userEmail ? userEmail.split('@')[0] : 'Scholar Student');
+      console.warn('Firestore profile resolution note:', e);
+      const normEmail = normalizeEmail(firebaseUser.email);
+      const fallbackId = firebaseUser.uid;
       return {
-        id: userDocId,
-        auth_uid: userId,
-        fullName: fallbackName,
-        email: userEmail || '',
-        avatarUrl: photoURL || '',
+        id: fallbackId,
+        auth_uid: firebaseUser.uid,
+        fullName: extraMeta?.fullName || firebaseUser.displayName || (normEmail.includes('@') ? normEmail.split('@')[0] : 'Academic Scholar'),
+        email: firebaseUser.email || '',
+        email_normalized: normEmail,
+        avatarUrl: firebaseUser.photoURL || '',
         role: 'Academic Scholar',
-        usn: extraMeta?.usn || '1FA23CS042',
-        sem: '6th Semester',
-        branch: extraMeta?.branch || 'Computer Science & Engineering',
-        studyStreak: 15,
+        usn: extraMeta?.usn || '',
+        sem: extraMeta?.sem || '',
+        branch: extraMeta?.branch || '',
+        studyStreak: 0,
         createdAt: new Date().toISOString()
       };
     }
@@ -175,12 +149,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshProfile = async () => {
     if (auth.currentUser) {
-      const p = await fetchOrInitFirestoreProfile(
-        auth.currentUser.uid,
-        auth.currentUser.email,
-        auth.currentUser.displayName,
-        auth.currentUser.photoURL
-      );
+      const p = await fetchOrInitFirestoreProfile(auth.currentUser);
       setProfile(p);
     }
   };
@@ -189,27 +158,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Listen directly to Firebase Auth lifecycle
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        const cleanName = getCleanUserName(firebaseUser.displayName, firebaseUser.email, firebaseUser.uid);
+        const provider = firebaseUser.providerData?.[0]?.providerId || 'password';
+        const p = await fetchOrInitFirestoreProfile(firebaseUser, provider);
+
         const authUserObj: AuthUser = {
           uid: firebaseUser.uid,
-          id: cleanName,
+          id: p.id,
           email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
+          displayName: p.fullName || firebaseUser.displayName,
+          photoURL: p.avatarUrl || firebaseUser.photoURL,
           user_metadata: {
-            full_name: firebaseUser.displayName || undefined,
-            avatar_url: firebaseUser.photoURL || undefined
+            full_name: p.fullName,
+            avatar_url: p.avatarUrl,
+            usn: p.usn,
+            branch: p.branch
           }
         };
 
         setUser(authUserObj);
         setSession({ user: authUserObj });
-        const p = await fetchOrInitFirestoreProfile(
-          firebaseUser.uid,
-          firebaseUser.email,
-          firebaseUser.displayName,
-          firebaseUser.photoURL
-        );
         setProfile(p);
       } else {
         setUser(null);
@@ -230,45 +197,57 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     branch?: string,
     sem?: string
   ) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const createdUser = userCredential.user;
+    const normEmail = normalizeEmail(email);
+    if (!normEmail) return { error: new Error('Email address is required') };
 
-      if (fullName) {
-        await firebaseUpdateAuthProfile(createdUser, { displayName: fullName });
+    try {
+      let createdUser: FirebaseUser;
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, normEmail, password);
+        createdUser = userCredential.user;
+      } catch (createErr: any) {
+        // If email already in use (e.g. registered earlier via Google OAuth)
+        if (createErr?.code === 'auth/email-already-in-use') {
+          // Check existing sign-in methods
+          const methods = await fetchSignInMethodsForEmail(auth, normEmail);
+          if (methods.includes('google.com') && !methods.includes('password')) {
+            return {
+              error: new Error(
+                'An account with this email already exists via Google. Please click "Continue with Google" to sign in and link your account.'
+              )
+            };
+          }
+          // If password method exists, attempt sign in
+          const signinRes = await signInWithEmailAndPassword(auth, normEmail, password);
+          createdUser = signinRes.user;
+        } else {
+          throw createErr;
+        }
       }
 
-      const cleanName = getCleanUserName(fullName, email, createdUser.uid);
+      if (fullName) {
+        await firebaseUpdateAuthProfile(createdUser, { displayName: fullName.trim() });
+      }
 
-      const newFirestoreProfile: UserProfile = {
-        id: cleanName,
-        auth_uid: createdUser.uid,
-        fullName: fullName.trim() || email.split('@')[0],
-        email: createdUser.email || email,
-        avatarUrl: '',
-        role: 'Academic Scholar',
-        usn: usn?.trim() || '1FA23CS042',
-        sem: sem?.trim() || '1st Semester',
-        branch: branch?.trim() || 'Computer Science & Engineering',
-        studyStreak: 15,
-        createdAt: new Date().toISOString()
-      };
-
-      // Persist profile in Firestore database under the User's Name document ID
-      await setDoc(doc(db, 'users', cleanName), newFirestoreProfile, { merge: true });
+      const p = await fetchOrInitFirestoreProfile(createdUser, 'password', {
+        fullName: fullName.trim(),
+        usn: usn?.trim(),
+        branch: branch?.trim(),
+        sem: sem?.trim()
+      });
 
       const authUserObj: AuthUser = {
         uid: createdUser.uid,
-        id: cleanName,
+        id: p.id,
         email: createdUser.email,
-        displayName: fullName,
+        displayName: fullName.trim(),
         photoURL: null,
-        user_metadata: { full_name: fullName, usn, branch }
+        user_metadata: { full_name: fullName.trim(), usn, branch }
       };
 
       setUser(authUserObj);
       setSession({ user: authUserObj });
-      setProfile(newFirestoreProfile);
+      setProfile(p);
 
       return { error: null, needsEmailVerification: false };
     } catch (err: any) {
@@ -278,25 +257,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const signIn = async (email: string, password: string) => {
+    const normEmail = normalizeEmail(email);
+    if (!normEmail) return { error: new Error('Email address is required') };
+
     try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, normEmail, password);
       const signedInUser = credential.user;
 
-      const p = await fetchOrInitFirestoreProfile(
-        signedInUser.uid,
-        signedInUser.email,
-        signedInUser.displayName,
-        signedInUser.photoURL
-      );
-
-      const cleanName = getCleanUserName(signedInUser.displayName || p.fullName, signedInUser.email, signedInUser.uid);
+      const p = await fetchOrInitFirestoreProfile(signedInUser, 'password');
 
       const authUserObj: AuthUser = {
         uid: signedInUser.uid,
-        id: cleanName,
+        id: p.id,
         email: signedInUser.email,
-        displayName: signedInUser.displayName || p.fullName,
-        photoURL: signedInUser.photoURL || p.avatarUrl || null,
+        displayName: p.fullName || signedInUser.displayName,
+        photoURL: p.avatarUrl || signedInUser.photoURL || null,
         user_metadata: { full_name: p.fullName }
       };
 
@@ -316,40 +291,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await signInWithPopup(auth, googleProvider);
       const googleUser = result.user;
 
-      const cleanName = getCleanUserName(googleUser.displayName, googleUser.email, googleUser.uid);
+      // Verify that OAuth email is verified before linking
+      if (!isOAuthEmailVerified(googleUser)) {
+        await firebaseSignOut(auth);
+        return {
+          error: new Error('Unverified Google email. Please verify your Google account email before signing in.')
+        };
+      }
 
-      const googleProfile: UserProfile = {
-        id: cleanName,
-        auth_uid: googleUser.uid,
-        fullName: googleUser.displayName || 'Google Scholar',
-        email: googleUser.email || '',
-        avatarUrl: googleUser.photoURL || '',
-        role: 'Google Verified Scholar',
-        usn: '1FA23CS099',
-        sem: '6th Semester',
-        branch: 'Computer Science & Engineering',
-        studyStreak: 15,
-        createdAt: new Date().toISOString()
-      };
-
-      // Persist profile in Firestore database under the User's Name document ID
-      await setDoc(doc(db, 'users', cleanName), googleProfile, { merge: true });
+      const p = await fetchOrInitFirestoreProfile(googleUser, 'google.com');
 
       const authUserObj: AuthUser = {
         uid: googleUser.uid,
-        id: cleanName,
+        id: p.id,
         email: googleUser.email,
-        displayName: googleUser.displayName,
-        photoURL: googleUser.photoURL,
-        user_metadata: { full_name: googleUser.displayName || undefined, avatar_url: googleUser.photoURL || undefined }
+        displayName: p.fullName || googleUser.displayName,
+        photoURL: p.avatarUrl || googleUser.photoURL,
+        user_metadata: { full_name: p.fullName, avatar_url: p.avatarUrl }
       };
 
       setUser(authUserObj);
       setSession({ user: authUserObj });
-      setProfile(googleProfile);
+      setProfile(p);
 
       return { error: null };
     } catch (err: any) {
+      // Handle Firebase account-exists-with-different-credential linking
+      if (err?.code === 'auth/account-exists-with-different-credential') {
+        try {
+          const pendingCred = GoogleAuthProvider.credentialFromError(err);
+          const email = err.customData?.email || err.email;
+          if (email && pendingCred) {
+            const methods = await fetchSignInMethodsForEmail(auth, email);
+            if (methods.includes('password')) {
+              return {
+                error: new Error(
+                  `An account already exists for ${email} using Password. Please sign in with your email & password first to link Google.`
+                )
+              };
+            }
+          }
+        } catch (linkErr) {
+          console.warn('Account linking credential inspection note:', linkErr);
+        }
+      }
+
       const code = err?.code || err?.message || '';
       if (!code.includes('cancelled-popup-request') && !code.includes('popup-closed-by-user')) {
         console.error('Google Sign-in error:', err);
@@ -370,8 +356,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const resetPasswordForEmail = async (email: string) => {
+    const normEmail = normalizeEmail(email);
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, normEmail);
       return { error: null };
     } catch (err: any) {
       console.error('Firebase sendPasswordResetEmail error:', err);
@@ -395,21 +382,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!auth.currentUser) return { error: new Error('User not logged in') };
+    if (!auth.currentUser || !profile) return { error: new Error('User not logged in') };
 
     try {
-      const userDocId = getCleanUserName(
-        updates.fullName || profile?.fullName || auth.currentUser.displayName,
-        auth.currentUser.email,
-        auth.currentUser.uid
-      );
-      
-      const userRef = doc(db, 'users', userDocId);
-      
+      const canonicalUserId = profile.id || auth.currentUser.uid;
+      const userRef = doc(db, 'users', canonicalUserId);
+
       const firestoreUpdates: any = {
         ...updates,
         updatedAt: new Date().toISOString()
       };
+
+      if (updates.email) {
+        firestoreUpdates.email_normalized = normalizeEmail(updates.email);
+      }
 
       await setDoc(userRef, firestoreUpdates, { merge: true });
 
@@ -423,7 +409,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setProfile(prev => prev ? { ...prev, ...updates } : null);
       return { error: null };
     } catch (err: any) {
-      console.error('Firebase updateProfile in Firestore error:', err);
+      console.error('Firebase updateProfile error:', err);
       return { error: err };
     }
   };
