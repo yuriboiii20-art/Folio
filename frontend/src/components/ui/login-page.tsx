@@ -23,6 +23,7 @@ import AnimatedGradientBackground from './animated-gradient-background';
 import { GlassCard } from './glass-card';
 import { GlassSelect } from './glass-select';
 import { useAuth } from '../../lib/authContext';
+import { normalizeEmail } from '../../lib/authLinkingService';
 
 export interface UserSessionProfile {
   name: string;
@@ -162,9 +163,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
     setIsLoading(true);
 
-    const email = signInEmail.includes('@')
-      ? signInEmail.trim()
-      : `${signInEmail.trim()}@folio.edu`;
+    const email = normalizeEmail(
+      signInEmail.includes('@')
+        ? signInEmail
+        : `${signInEmail}@folio.edu`
+    );
 
     const { error } = await signIn(email, signInPassword);
 
@@ -210,8 +213,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
     setIsLoading(true);
 
+    const normSignUpEmail = normalizeEmail(signUpEmail);
+
     const { error } = await signUp(
-      signUpEmail.trim(),
+      normSignUpEmail,
       signUpPassword,
       signUpName.trim(),
       signUpUsn.trim(),
@@ -231,11 +236,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       onLogin({
         name: signUpName.trim(),
         role: 'Registered Scholar',
-        usn: signUpUsn.trim() || '1FA24CS042',
+        usn: signUpUsn.trim() || '',
         sem: signUpSem,
         branch: signUpBranch,
-        email: signUpEmail.trim(),
-        studyStreak: 1
+        email: normSignUpEmail,
+        studyStreak: 0
       });
     }
   };
@@ -263,18 +268,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         }
         return;
       }
-
-      if (onLogin) {
-        onLogin({
-          name: 'Scholar Student',
-          role: 'Academic Scholar',
-          usn: '1FA23CS099',
-          sem: '6th Semester',
-          branch: 'Computer Science & Engineering',
-          email: 'scholar.google@folio.edu',
-          studyStreak: 15
-        });
-      }
     } catch {
       window.removeEventListener('focus', handleWindowFocus);
       setIsLoading(false);
@@ -283,19 +276,20 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const handleForgotPassword = async (e: FormEvent) => {
     e.preventDefault();
-    if (!forgotEmail.trim()) {
+    const normForgotEmail = normalizeEmail(forgotEmail);
+    if (!normForgotEmail) {
       setErrorMessage('Please enter your university email address.');
       return;
     }
 
     setIsLoading(true);
-    const { error } = await resetPasswordForEmail(forgotEmail.trim());
+    const { error } = await resetPasswordForEmail(normForgotEmail);
     setIsLoading(false);
 
     if (error) {
       setErrorMessage(error.message || 'Unable to send recovery email.');
     } else {
-      setSuccessMessage(`Password recovery instructions dispatched to ${forgotEmail.trim()}`);
+      setSuccessMessage(`Password recovery instructions dispatched to ${normForgotEmail}`);
       setIsForgotModalOpen(false);
       setForgotEmail('');
     }
