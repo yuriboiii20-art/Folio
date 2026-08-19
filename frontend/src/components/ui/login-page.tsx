@@ -18,6 +18,7 @@ import {
   Layers,
   Database
 } from 'lucide-react';
+import { FolioMark } from './logo';
 import { useAuth } from '../../lib/authContext';
 
 export interface UserSessionProfile {
@@ -29,6 +30,7 @@ export interface UserSessionProfile {
   email: string;
   studyStreak: number;
   avatarUrl?: string;
+  avatarPreset?: string;
   token?: string;
 }
 
@@ -276,9 +278,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </div>
             
             <div className="flex items-center gap-3 pt-1">
-              <div className="size-11 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-white/20">
-                <GraduationCap className="size-6 text-white" />
-              </div>
+              <FolioMark size={44} className="rounded-2xl shadow-lg shadow-indigo-500/20 border border-white/20" />
               <div>
                 <h1 className="text-2xl font-black text-white tracking-tight leading-tight">FOLIO</h1>
                 <p className="text-xs font-medium text-slate-300">Smart File Management for Students</p>
@@ -344,9 +344,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           {/* Top Mobile Brand Header */}
           <div className="lg:hidden flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="size-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white">
-                <GraduationCap className="size-4.5" />
-              </div>
+              <FolioMark size={32} className="rounded-xl border border-white/20" />
               <span className="font-bold text-base text-white">FOLIO</span>
             </div>
             <span className="text-[10px] text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
