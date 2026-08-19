@@ -431,8 +431,8 @@ export const uploadFile = async (
   const fileType = fileExt === 'pdf' ? 'pdf' : (fileExt === 'txt' || fileExt === 'md' ? 'text' : 'doc');
 
   let fileDataUrl: string | undefined = undefined;
-  // If file is reasonable size (< 800KB), convert to Data URL for Firestore persistence
-  if (file.size < 800 * 1024) {
+  // If file is reasonable size (< 1.5MB), convert to Data URL for Firestore persistence & offline preview
+  if (file.size < 1.5 * 1024 * 1024) {
     try {
       fileDataUrl = await fileToDataUrl(file);
     } catch (e) { }
@@ -461,10 +461,12 @@ export const uploadFile = async (
     newFileRecord.data_url = fileDataUrl;
   }
 
-  // 1. Try uploading to Firebase Storage if active
+  // 1. Try uploading to Firebase Storage if active with a 3.5s timeout guard
   try {
     const storageReference = ref(storage, storagePath);
-    await uploadBytes(storageReference, file);
+    const uploadPromise = uploadBytes(storageReference, file);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Storage upload timeout')), 3500));
+    await Promise.race([uploadPromise, timeoutPromise]);
   } catch (storageErr) {
     console.warn('Firebase Cloud Storage note (using Cloud Firestore database persistence):', storageErr);
   }

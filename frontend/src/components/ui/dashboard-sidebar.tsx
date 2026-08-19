@@ -1273,8 +1273,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
   const [newFolderDesc, setNewFolderDesc] = useState('');
 
   const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
-  const [selectedFolderId, setSelectedFolderId] = useState<string>(appSettings.defaultUploadLocation);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [selectedSource, setSelectedSource] = useState<string>('Direct Upload');
+
+  useEffect(() => {
+    if (folders.length > 0 && (!selectedFolderId || !folders.some(f => f.id === selectedFolderId))) {
+      setSelectedFolderId(openedFolderId && folders.some(f => f.id === openedFolderId) ? openedFolderId : folders[0].id);
+    }
+  }, [folders, openedFolderId, selectedFolderId]);
 
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
@@ -1659,7 +1665,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       const isPdf = fileNameToUse.toLowerCase().endsWith('.pdf');
       const localBlobUrl = URL.createObjectURL(selectedUploadFile);
       const fileSizeMb = (selectedUploadFile.size / (1024 * 1024)).toFixed(1);
-      let targetFolderId = selectedFolderId || folders[0]?.id || 'f-cn';
+      let targetFolderId = (folders.some(f => f.id === selectedFolderId) ? selectedFolderId : folders[0]?.id) || selectedFolderId || 'general';
 
       // Extract text preview snippet locally for text files
       let snippetText = `Document uploaded: ${fileNameToUse}. Stored in Firebase Cloud Storage.`;
@@ -4992,7 +4998,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <div>
                 <label className="block text-slate-600 mb-1.5 font-semibold">Add to Subject Folder</label>
                 <select
-                  value={selectedFolderId}
+                  value={folders.some(f => f.id === selectedFolderId) ? selectedFolderId : (folders[0]?.id || '')}
                   onChange={(e) => setSelectedFolderId(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-slate-800 font-medium"
                 >
