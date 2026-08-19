@@ -350,7 +350,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       return { error: null };
     } catch (err: any) {
-      console.error('Google Sign-in error:', err);
+      const code = err?.code || err?.message || '';
+      if (!code.includes('cancelled-popup-request') && !code.includes('popup-closed-by-user')) {
+        console.error('Google Sign-in error:', err);
+      }
       return { error: err };
     }
   };

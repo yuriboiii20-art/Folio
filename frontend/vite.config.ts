@@ -8,9 +8,28 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
+    }
+  },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react')) return 'vendor';
+            if (id.includes('lucide-react')) return 'lucide';
+            if (id.includes('firebase')) return 'firebase';
+          }
+        }
+      }
+    }
+  }
 });

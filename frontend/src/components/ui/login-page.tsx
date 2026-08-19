@@ -114,7 +114,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
 
   const formatAuthError = (err: any): string => {
-    const msg = err?.message || '';
+    const msg = err?.message || err?.code || '';
+    if (
+      msg.includes('auth/popup-closed-by-user') ||
+      msg.includes('auth/cancelled-popup-request') ||
+      msg.includes('popup-closed-by-user') ||
+      msg.includes('cancelled-popup-request')
+    ) {
+      return '';
+    }
     if (msg.includes('auth/unauthorized-domain') || msg.includes('unauthorized-domain')) {
       return 'This domain is not authorized in Firebase. Go to Firebase Console > Authentication > Settings > Authorized domains > Click "Add domain" and add your Vercel domain.';
     }
@@ -235,24 +243,41 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setErrorMessage('');
-    const { error } = await signInWithGoogle();
-    setIsLoading(false);
 
-    if (error) {
-      setErrorMessage(formatAuthError(error));
-      return;
-    }
+    const handleWindowFocus = () => {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 300);
+    };
+    window.addEventListener('focus', handleWindowFocus, { once: true });
 
-    if (onLogin) {
-      onLogin({
-        name: 'Scholar Student',
-        role: 'Academic Scholar',
-        usn: '1FA23CS099',
-        sem: '6th Semester',
-        branch: 'Computer Science & Engineering',
-        email: 'scholar.google@folio.edu',
-        studyStreak: 15
-      });
+    try {
+      const { error } = await signInWithGoogle();
+      window.removeEventListener('focus', handleWindowFocus);
+      setIsLoading(false);
+
+      if (error) {
+        const formattedErr = formatAuthError(error);
+        if (formattedErr) {
+          setErrorMessage(formattedErr);
+        }
+        return;
+      }
+
+      if (onLogin) {
+        onLogin({
+          name: 'Scholar Student',
+          role: 'Academic Scholar',
+          usn: '1FA23CS099',
+          sem: '6th Semester',
+          branch: 'Computer Science & Engineering',
+          email: 'scholar.google@folio.edu',
+          studyStreak: 15
+        });
+      }
+    } catch {
+      window.removeEventListener('focus', handleWindowFocus);
+      setIsLoading(false);
     }
   };
 
@@ -287,19 +312,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[22rem] h-[22rem] bg-cyan-400/20 rounded-full blur-[130px] pointer-events-none" />
 
       {/* Main Glassmorphic Container */}
-      <GlassCard className="w-full max-w-md max-h-full rounded-3xl p-4 sm:p-6 relative z-10 overflow-hidden border-white/25 bg-gradient-to-br from-white/30 via-white/10 to-white/20 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_24px_70px_-20px_rgba(2,6,23,0.75)] ring-1 ring-inset ring-white/10">
+      <GlassCard className="w-full max-w-md rounded-3xl p-4 sm:p-5 relative z-10 overflow-hidden border-white/25 bg-gradient-to-br from-white/30 via-white/10 to-white/20 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_24px_70px_-20px_rgba(2,6,23,0.75)] ring-1 ring-inset ring-white/10">
 
         {/* Specular highlights: a lit top edge and a soft corner catch */}
         <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
         <span className="pointer-events-none absolute -top-24 -left-20 w-64 h-64 rounded-full bg-white/20 blur-3xl" />
         
         {/* ======================= AUTH FORM (Glassmorphism + Google Login) ======================= */}
-        <div className="relative z-10 flex flex-col w-full min-h-0 px-1 sm:px-2 pt-1 pb-2 overflow-y-auto overscroll-contain">
+        <div className="relative z-10 flex flex-col w-full min-h-0 px-1 sm:px-2 pt-0.5 pb-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           
           {/* Brand Header */}
-          <div className="flex items-center gap-2 mb-4">
-            <FolioMark size={32} className="rounded-xl border border-white/20 shrink-0" />
-            <span className="font-bold text-base text-white">FOLIO</span>
+          <div className="flex justify-center items-center mb-3 w-full">
+            <FolioMark size={76} fillColor="#ffffff" className="shrink-0 drop-shadow-xl" />
           </div>
 
           {/* Tabs for Sign In vs Create Account */}

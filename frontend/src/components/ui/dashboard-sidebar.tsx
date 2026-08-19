@@ -2148,7 +2148,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       blendMode="exclusion"
       rescanKey={magneticRescanKey}
     >
-    <div className="flex h-[100dvh] w-full bg-[#f4f7fa] text-slate-800 overflow-hidden antialiased">
+    <div className="flex h-screen w-full bg-[#f4f7fa] text-slate-800 overflow-hidden antialiased">
 
       {/* Mobile navigation backdrop */}
       {isMobileNavOpen && (
@@ -2159,16 +2159,20 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         />
       )}
 
-      {/* Sidebar Navigation — off-canvas drawer below lg, fixed rail above */}
+      {/* Sidebar Navigation — off-canvas drawer below lg, static flex column above */}
       <aside
-        className={`fixed lg:relative inset-y-0 left-0 h-full flex flex-col justify-between transition-all duration-300 z-40 shadow-lg bg-[#1e293b] border-r border-slate-800 ${isMobileNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-          } ${isSidebarCollapsed ? 'w-20 items-center' : 'w-64'}`}
+        className={`z-40 h-full bg-[#1e293b] border-r border-slate-800 flex flex-col justify-between shrink-0 transition-all duration-300 ${
+          isMobileNavOpen
+            ? 'fixed inset-y-0 left-0 flex w-64 shadow-2xl animate-in slide-in-from-left duration-200'
+            : 'hidden lg:flex lg:static lg:translate-x-0'
+        } ${isSidebarCollapsed ? 'w-64 lg:w-20' : 'w-64'}`}
       >
         <div className="w-full">
           {/* Brand Header */}
-          <div className={`h-16 flex items-center bg-[#0f172a] border-b border-slate-800 ${isSidebarCollapsed ? 'px-2 justify-center gap-1' : 'px-4 justify-between'
-            }`}>
-            <FolioLogo size={36} compact={isSidebarCollapsed} tone="dark" />
+          <div className={`h-16 flex items-center bg-[#0f172a] border-b border-slate-800 ${
+            isSidebarCollapsed ? 'px-4 lg:px-2 justify-between lg:justify-center gap-1' : 'px-4 justify-between'
+          }`}>
+            <FolioLogo size={58} compact={isSidebarCollapsed && !isMobileNavOpen} tone="dark" />
 
             <div className="flex items-center gap-1 shrink-0">
               <button
@@ -2191,7 +2195,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           {/* Navigation Links */}
           <div className="p-3">
-            {!isSidebarCollapsed && (
+            {(!isSidebarCollapsed || isMobileNavOpen) && (
               <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 px-3 py-2">
                 Navigation Menu
               </div>
@@ -2206,18 +2210,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     data-magnetic
                     onClick={() => {
                       goToTab(item.id as TabId);
+                      setIsMobileNavOpen(false);
                     }}
                     title={isSidebarCollapsed ? item.title : undefined}
-                    className={`w-full flex items-center rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer group ${isSidebarCollapsed ? 'justify-center p-3 hover:bg-slate-800 hover:scale-105 active:scale-95' : 'justify-between px-3.5 py-3'
-                      } ${isActive
+                    className={`w-full flex items-center rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer group ${
+                      isSidebarCollapsed
+                        ? 'justify-between px-3.5 py-3 lg:justify-center lg:p-3 hover:bg-slate-800 hover:scale-105 active:scale-95'
+                        : 'justify-between px-3.5 py-3'
+                    } ${isActive
                         ? 'bg-slate-800 text-white font-black shadow-sm ring-1 ring-slate-700'
                         : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                       }`}
                   >
                     <div className="flex items-center gap-3">
-                      <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 ${isActive ? 'text-white scale-110' : 'text-slate-400 group-hover:scale-125 group-hover:text-white'
-                        }`} />
-                      {!isSidebarCollapsed && <span className="tracking-wide">{item.title}</span>}
+                      <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                        isActive ? 'text-white scale-110' : 'text-slate-400 group-hover:scale-125 group-hover:text-white'
+                      }`} />
+                      <span className={`tracking-wide ${isSidebarCollapsed ? 'inline lg:hidden' : 'inline'}`}>
+                        {item.title}
+                      </span>
                     </div>
 
                     {!isSidebarCollapsed && item.badge !== undefined && (
@@ -2277,7 +2288,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       </aside>
 
       {/* Main Content Workspace */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#f4f7fa]">
+      <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-[#f4f7fa]">
 
         {/* Header Navbar */}
         <header className="h-16 border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-3 shrink-0 bg-white shadow-2xs">
@@ -2759,6 +2770,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     {/* Add To-Do Input */}
                     <div className="flex items-center gap-2 mb-2 shrink-0">
                       <input
+                        id="new-todo-task-input"
+                        name="new-todo-task-input"
                         type="text"
                         value={newTodoText}
                         onChange={(e) => setNewTodoText(e.target.value)}
@@ -3371,6 +3384,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                 <div className="rounded-2xl border border-slate-300 bg-white shadow-xs focus-within:border-slate-800 transition-colors">
                   <input
+                    id="ai-studio-chat-input"
+                    name="ai-studio-chat-input"
                     type="text"
                     value={chatInput}
                     disabled={isAiGenerating}
@@ -3386,6 +3401,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                       {/* Attach from device */}
                       <input
+                        id="chat-file-attachment-input"
+                        name="chat-file-attachment-input"
                         ref={chatFileInputRef}
                         type="file"
                         className="hidden"

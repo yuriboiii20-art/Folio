@@ -2,9 +2,14 @@ import { cn } from "@/lib/utils";
 import * as React from "react";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, id, name, ...props }, ref) => {
+    const generatedId = React.useId();
+    const finalId = id || (props['placeholder'] ? String(props['placeholder']).toLowerCase().replace(/[^a-z0-9]/g, '-') : generatedId);
+    const finalName = name || finalId;
     return (
       <input
+        id={finalId}
+        name={finalName}
         type={type}
         className={cn(
           "flex h-9 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm shadow-black/5 transition-shadow placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50",

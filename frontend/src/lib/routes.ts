@@ -55,11 +55,21 @@ export const buildPath = (tab: TabId, folderId?: string | null, section?: string
 };
 
 export const parseLocation = (): AppLocation => {
-  const raw = window.location.pathname.replace(/\/+$/, '') || '/dashboard';
+  let raw = window.location.pathname.replace(/\/+$/, '');
   const section = window.location.hash ? window.location.hash.replace(/^#/, '') : null;
 
   if (raw === '' || raw === '/') {
-    return { tab: 'dashboard', folderId: null, section };
+    try {
+      const savedPath = localStorage.getItem('folio_last_path');
+      if (savedPath && savedPath !== '/' && savedPath !== '/dashboard') {
+        window.history.replaceState(null, '', savedPath);
+        raw = savedPath.split('#')[0].replace(/\/+$/, '');
+      } else {
+        raw = '/dashboard';
+      }
+    } catch {
+      raw = '/dashboard';
+    }
   }
 
   const folderMatch = raw.match(/^\/subject-folders\/(.+)$/);
@@ -79,6 +89,9 @@ export interface NavigateOptions {
 /** Push (or replace) the workspace URL without reloading the page. */
 export const navigateTo = (tab: TabId, options: NavigateOptions = {}) => {
   const url = buildPath(tab, options.folderId, options.section);
+  try {
+    localStorage.setItem('folio_last_path', url);
+  } catch {}
   const currentUrl = window.location.pathname + window.location.hash;
   if (url === currentUrl) return;
 
