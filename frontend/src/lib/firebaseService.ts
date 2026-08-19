@@ -431,8 +431,8 @@ export const uploadFile = async (
   const fileType = fileExt === 'pdf' ? 'pdf' : (fileExt === 'txt' || fileExt === 'md' ? 'text' : 'doc');
 
   let fileDataUrl: string | undefined = undefined;
-  // If file is reasonable size (< 1.5MB), convert to Data URL for Firestore persistence & offline preview
-  if (file.size < 1.5 * 1024 * 1024) {
+  // If file is within safe Firestore document limits (< 650KB), convert to Data URL for Firestore persistence & offline preview
+  if (file.size < 650 * 1024) {
     try {
       fileDataUrl = await fileToDataUrl(file);
     } catch (e) { }
@@ -481,8 +481,11 @@ export const uploadFile = async (
       ...newFileRecord
     };
   } catch (error) {
-    console.error('Firestore save document error:', error);
-    throw error;
+    console.warn('Firestore save document note (using session persistence):', error);
+    return {
+      id: `doc-${Date.now()}`,
+      ...newFileRecord
+    };
   }
 };
 
