@@ -18,6 +18,8 @@ export type TabId =
   | 'analytics'
   | 'ai-studio'
   | 'trash'
+  | 'terms'
+  | 'privacy'
   | 'settings'
   | 'profile';
 
@@ -27,6 +29,8 @@ export const TAB_PATHS: Record<TabId, string> = {
   analytics: '/analytics',
   'ai-studio': '/ai-studio',
   trash: '/trash',
+  terms: '/terms',
+  privacy: '/privacy',
   settings: '/settings',
   profile: '/profile'
 };

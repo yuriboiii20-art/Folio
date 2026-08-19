@@ -19,6 +19,9 @@ import {
   Database
 } from 'lucide-react';
 import { FolioMark } from './logo';
+import AnimatedGradientBackground from './animated-gradient-background';
+import { GlassCard } from './glass-card';
+import { GlassSelect } from './glass-select';
 import { useAuth } from '../../lib/authContext';
 
 export interface UserSessionProfile {
@@ -62,6 +65,19 @@ const Label = ({ children, className, htmlFor }: { children: ReactNode; classNam
   </label>
 );
 
+const BRANCH_OPTIONS = [
+  { value: 'Computer Science & Engineering', label: 'Computer Science & Engineering' },
+  { value: 'Artificial Intelligence & Machine Learning', label: 'Artificial Intelligence & ML' },
+  { value: 'Information Science & Engineering', label: 'Information Science & Engineering' },
+  { value: 'Electronics & Communication', label: 'Electronics & Communication' },
+  { value: 'Mechanical Engineering', label: 'Mechanical Engineering' },
+];
+
+const SEMESTER_OPTIONS = [
+  '1st Semester', '2nd Semester', '3rd Semester', '4th Semester',
+  '5th Semester', '6th Semester', '7th Semester', '8th Semester',
+].map(sem => ({ value: sem, label: sem }));
+
 // Bottom Gradient Accent Component
 const BottomGradient = () => {
   return (
@@ -93,6 +109,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpUsn, setSignUpUsn] = useState('');
   const [signUpBranch, setSignUpBranch] = useState('Computer Science & Engineering');
+  const [signUpSem, setSignUpSem] = useState('1st Semester');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
 
@@ -190,7 +207,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       signUpPassword,
       signUpName.trim(),
       signUpUsn.trim(),
-      signUpBranch
+      signUpBranch,
+      signUpSem
     );
 
     setIsLoading(false);
@@ -206,7 +224,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         name: signUpName.trim(),
         role: 'Registered Scholar',
         usn: signUpUsn.trim() || '1FA24CS042',
-        sem: '1st Semester',
+        sem: signUpSem,
         branch: signUpBranch,
         email: signUpEmail.trim(),
         studyStreak: 1
@@ -259,97 +277,29 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="h-screen max-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden select-none relative">
+    <div className="h-[100dvh] w-full bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden select-none relative">
+      {/* Animated Radial Gradient Backdrop */}
+      <AnimatedGradientBackground Breathing />
+
       {/* Background Animated Glows */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-purple-600/15 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/3 left-1/2 -translate-x-[70%] -translate-y-1/2 w-[26rem] h-[26rem] bg-blue-500/30 rounded-full blur-[110px] pointer-events-none" />
+      <div className="absolute bottom-1/3 left-1/2 -translate-x-[30%] translate-y-1/2 w-[26rem] h-[26rem] bg-fuchsia-500/25 rounded-full blur-[110px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[22rem] h-[22rem] bg-cyan-400/20 rounded-full blur-[130px] pointer-events-none" />
 
       {/* Main Glassmorphic Container */}
-      <div className="w-full max-w-5xl h-full max-h-[640px] grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 bg-slate-900/40 border border-white/15 rounded-3xl p-4 sm:p-6 backdrop-blur-2xl shadow-2xl shadow-blue-950/40 overflow-hidden relative z-10 items-center">
+      <GlassCard className="w-full max-w-md max-h-full rounded-3xl p-4 sm:p-6 relative z-10 overflow-hidden border-white/25 bg-gradient-to-br from-white/30 via-white/10 to-white/20 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_24px_70px_-20px_rgba(2,6,23,0.75)] ring-1 ring-inset ring-white/10">
+
+        {/* Specular highlights: a lit top edge and a soft corner catch */}
+        <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+        <span className="pointer-events-none absolute -top-24 -left-20 w-64 h-64 rounded-full bg-white/20 blur-3xl" />
         
-        {/* ======================= LEFT HERO SECTION (Clean Glassmorphism, Zero Overlap) ======================= */}
-        <div className="hidden lg:flex flex-col justify-between h-full bg-gradient-to-br from-blue-950/30 via-slate-900/30 to-indigo-950/30 border border-white/10 rounded-2xl p-6 relative overflow-hidden backdrop-blur-xl">
+        {/* ======================= AUTH FORM (Glassmorphism + Google Login) ======================= */}
+        <div className="relative z-10 flex flex-col w-full min-h-0 px-1 sm:px-2 pt-1 pb-2 overflow-y-auto overscroll-contain">
           
-          {/* Top Brand Header */}
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-400/25 text-blue-300 text-xs font-semibold backdrop-blur-md">
-              <Sparkles className="size-3.5 text-blue-400" />
-              <span>FOLIO • Academic OS</span>
-            </div>
-            
-            <div className="flex items-center gap-3 pt-1">
-              <FolioMark size={44} className="rounded-2xl shadow-lg shadow-indigo-500/20 border border-white/20" />
-              <div>
-                <h1 className="text-2xl font-black text-white tracking-tight leading-tight">FOLIO</h1>
-                <p className="text-xs font-medium text-slate-300">Smart File Management for Students</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Clean Distinct Feature Cards (Zero visual collision) */}
-          <div className="space-y-3 my-auto">
-            {/* Feature 1 */}
-            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 backdrop-blur-md flex items-start gap-3.5 hover:bg-slate-800/60 transition-all">
-              <div className="size-8 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
-                <FolderClosed className="size-4" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-white">Subject Folders & Notes</h4>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Organize lecture PDFs, assignments, and study materials into structured subject folders.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 backdrop-blur-md flex items-start gap-3.5 hover:bg-slate-800/60 transition-all">
-              <div className="size-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5">
-                <ShieldCheck className="size-4" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-white">Firebase Cloud Security Rules</h4>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  100% strict user data isolation. Only you can view, upload, and access your private files.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 backdrop-blur-md flex items-start gap-3.5 hover:bg-slate-800/60 transition-all">
-              <div className="size-8 rounded-lg bg-purple-500/20 border border-purple-400/30 flex items-center justify-center text-purple-400 shrink-0 mt-0.5">
-                <Zap className="size-4" />
-              </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-bold text-white">AI Study Studio & Search</h4>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Instant full-text indexing, quick previews, and intelligent academic query assistants.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Status Tag */}
-          <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
-            <div className="flex items-center gap-1.5">
-              <div className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Cloud Database Active</span>
-            </div>
-            <span className="text-blue-400 font-medium">PostgreSQL 15 Protected</span>
-          </div>
-        </div>
-
-        {/* ======================= RIGHT AUTH FORM SECTION (Glassmorphism + Google Login) ======================= */}
-        <div className="flex flex-col justify-center h-full px-2 sm:px-6 py-2 overflow-y-auto">
-          
-          {/* Top Mobile Brand Header */}
-          <div className="lg:hidden flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <FolioMark size={32} className="rounded-xl border border-white/20" />
-              <span className="font-bold text-base text-white">FOLIO</span>
-            </div>
-            <span className="text-[10px] text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
-              Academic Cloud
-            </span>
+          {/* Brand Header */}
+          <div className="flex items-center gap-2 mb-4">
+            <FolioMark size={32} className="rounded-xl border border-white/20 shrink-0" />
+            <span className="font-bold text-base text-white">FOLIO</span>
           </div>
 
           {/* Tabs for Sign In vs Create Account */}
@@ -429,7 +379,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           {mode === 'signin' ? (
             <form onSubmit={handleSignInSubmit} className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="signin-email" className="text-xs">University Email / Username</Label>
+                <Label htmlFor="signin-email" className="text-xs">Email</Label>
                 <div className="relative">
                   <Input
                     id="signin-email"
@@ -540,7 +490,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="signup-email" className="text-xs">University Email</Label>
+                <Label htmlFor="signup-email" className="text-xs">Email</Label>
                 <Input
                   id="signup-email"
                   type="email"
@@ -552,20 +502,28 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="signup-branch" className="text-xs">Department / Branch</Label>
-                <select
-                  id="signup-branch"
-                  value={signUpBranch}
-                  onChange={(e) => setSignUpBranch(e.target.value)}
-                  className="w-full h-9 px-2.5 rounded-xl bg-slate-800/80 text-xs text-slate-100 border border-white/10 focus:ring-1.5 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="Computer Science & Engineering">Computer Science & Engineering</option>
-                  <option value="Artificial Intelligence & Machine Learning">Artificial Intelligence & ML</option>
-                  <option value="Information Science & Engineering">Information Science & Engineering</option>
-                  <option value="Electronics & Communication">Electronics & Communication</option>
-                  <option value="Mechanical Engineering">Mechanical Engineering</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="signup-branch" className="text-xs">Department / Branch</Label>
+                  <GlassSelect
+                    id="signup-branch"
+                    value={signUpBranch}
+                    options={BRANCH_OPTIONS}
+                    onChange={setSignUpBranch}
+                    aria-label="Department or branch"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="signup-sem" className="text-xs">Semester</Label>
+                  <GlassSelect
+                    id="signup-sem"
+                    value={signUpSem}
+                    options={SEMESTER_OPTIONS}
+                    onChange={setSignUpSem}
+                    aria-label="Semester"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -613,14 +571,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </form>
           )}
 
-          {/* Security note footer */}
-          <div className="text-center pt-2">
-            <p className="text-[11px] text-slate-400">
-              🔒 256-Bit Encrypted • Institutional Session Storage
-            </p>
-          </div>
         </div>
-      </div>
+      </GlassCard>
 
       {/* Forgot Password Modal */}
       {isForgotModalOpen && (
@@ -637,7 +589,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="forgot-email" className="text-xs">University Email</Label>
+              <Label htmlFor="forgot-email" className="text-xs">Email</Label>
               <Input
                 id="forgot-email"
                 type="email"
