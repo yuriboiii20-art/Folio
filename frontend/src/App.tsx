@@ -30,11 +30,11 @@ function MainWorkspace({ user, profile, signOut }: { user: any; profile: any; si
   const sessionProfile: UserSessionProfile = React.useMemo(() => ({
     name: profile?.fullName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Academic Scholar',
     role: profile?.role || 'Academic Scholar',
-    usn: profile?.usn || '1FA23CS042',
-    sem: profile?.sem || '6th Semester',
-    branch: profile?.branch || 'Computer Science & Engineering',
+    usn: profile?.usn || '',
+    sem: profile?.sem || '',
+    branch: profile?.branch || '',
     email: profile?.email || user?.email || '',
-    studyStreak: profile?.studyStreak || 12,
+    studyStreak: typeof profile?.studyStreak === 'number' ? profile.studyStreak : 0,
     avatarUrl: profile?.avatarUrl || '',
     avatarPreset: profile?.avatarPreset || ''
   }), [profile, user]);

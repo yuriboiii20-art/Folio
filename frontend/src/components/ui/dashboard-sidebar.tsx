@@ -1675,21 +1675,25 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
       let autoTagNote = '';
       if (appSettings.autoTagging) {
         setAutoTagStatus(`Analysing ${fileNameToUse}...`);
-        const classification = await classifyDocument({
-          fileName: fileNameToUse,
-          content: snippetText,
-          folders: folders.map(f => ({ id: f.id, name: f.name, code: f.code, description: f.description })),
-          selectedFolderId: targetFolderId,
-          apiKey: GEMINI_API_KEY
-        });
+        try {
+          const classification = await classifyDocument({
+            fileName: fileNameToUse,
+            content: snippetText,
+            folders: folders.map(f => ({ id: f.id, name: f.name, code: f.code, description: f.description })),
+            selectedFolderId: targetFolderId,
+            apiKey: GEMINI_API_KEY
+          });
 
-        autoTags = classification.tags;
-        if (classification.rerouted && classification.confidence >= 0.5) {
-          targetFolderId = classification.folderId;
-          autoTagNote = ` • auto-filed into ${classification.folderName}`;
-        }
-        if (autoTags.length) {
-          autoTagNote += ` • tagged ${autoTags.slice(0, 3).join(', ')}`;
+          autoTags = classification.tags || [];
+          if (classification.rerouted && classification.confidence >= 0.5) {
+            targetFolderId = classification.folderId;
+            autoTagNote = ` • auto-filed into ${classification.folderName}`;
+          }
+          if (autoTags.length) {
+            autoTagNote += ` • tagged ${autoTags.slice(0, 3).join(', ')}`;
+          }
+        } catch (autoTagErr) {
+          console.warn('Auto-tagging note (continuing file upload):', autoTagErr);
         }
         setAutoTagStatus('');
       }
@@ -1868,6 +1872,14 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
   // Save Edit Profile (Firebase Auth & Firestore Synced)
   const handleSaveProfile = async () => {
+    const updatedProfile = {
+      fullName: editName,
+      email: editEmail,
+      usn: editUsn,
+      role: editRole,
+      branch: editBranch
+    };
+
     setStudentProfile(prev => ({
       ...prev,
       name: editName,
@@ -1879,8 +1891,8 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
     setIsEditProfileModalOpen(false);
 
     try {
-      await authUpdateProfile({ fullName: editName });
-      showNotification('PROFILE UPDATED', 'Profile saved to Firebase', 'success');
+      await authUpdateProfile(updatedProfile);
+      showNotification('PROFILE UPDATED', 'Profile saved to Firebase & updated across workspace', 'success');
     } catch (e: any) {
       showNotification('PROFILE UPDATE FAILED', e?.message || 'Error updating profile', 'warning');
     }

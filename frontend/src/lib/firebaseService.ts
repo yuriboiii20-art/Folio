@@ -66,8 +66,16 @@ export interface DbDeadline {
   created_at: string;
 }
 
-const getEffectiveUserId = (): string | null => {
-  return auth.currentUser ? auth.currentUser.uid : null;
+const getEffectiveUserId = (): string => {
+  if (auth.currentUser) return auth.currentUser.uid;
+  try {
+    const cached = localStorage.getItem('folio_user_profile');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return parsed.email || parsed.usn || parsed.name || 'guest_scholar';
+    }
+  } catch {}
+  return 'guest_scholar';
 };
 
 // ============================================================================
