@@ -115,7 +115,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
 
   const formatAuthError = (err: any): string => {
-    const msg = err?.message || err?.code || '';
+    const rawMsg = err?.message || '';
+    const code = err?.code || '';
+
+    // If it's already a clear human-readable error message (doesn't start with 'Firebase:')
+    if (rawMsg && !rawMsg.startsWith('Firebase:') && !rawMsg.includes('auth/')) {
+      return rawMsg;
+    }
+
+    const msg = code || rawMsg;
     if (
       msg.includes('auth/popup-closed-by-user') ||
       msg.includes('auth/cancelled-popup-request') ||
@@ -125,7 +133,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       return '';
     }
     if (msg.includes('auth/unauthorized-domain') || msg.includes('unauthorized-domain')) {
-      return 'This domain is not authorized in Firebase. Go to Firebase Console > Authentication > Settings > Authorized domains > Click "Add domain" and add your Vercel domain.';
+      return 'This domain is not authorized in Firebase. Go to Firebase Console > Authentication > Settings > Authorized domains > Click "Add domain" and add your domain.';
     }
     if (msg.includes('auth/operation-not-allowed') || msg.includes('operation-not-allowed')) {
       return 'Email/Password Sign-In is not enabled yet in Firebase Console. Go to Firebase Console > Authentication > Sign-in method > Click "Email/Password" > Toggle "Enable" and click "Save".';
@@ -137,7 +145,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       return 'Firebase API Key is missing or invalid. Please check VITE_FIREBASE_API_KEY in Vercel Environment Variables and redeploy.';
     }
     if (msg.includes('auth/email-already-in-use')) {
-      return 'This email is already registered. Please switch to Sign In.';
+      return 'This email is already registered. Please switch to Sign In or click "Continue with Google".';
     }
     if (msg.includes('auth/invalid-email')) {
       return 'Please enter a valid email address.';
@@ -145,10 +153,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     if (msg.includes('auth/weak-password')) {
       return 'Password should be at least 6 characters.';
     }
-    if (msg.includes('auth/user-not-found') || msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
-      return 'Invalid email or password. Please verify your credentials.';
+    if (msg.includes('auth/user-not-found')) {
+      return 'No account found with this email. Please switch to "Create Account" or click "Continue with Google".';
     }
-    return msg || 'Authentication error. Please try again.';
+    if (msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
+      return 'Incorrect password. If you originally registered with Google, please click "Continue with Google" above or use "Forgot password?" to reset.';
+    }
+    return rawMsg || 'Authentication error. Please try again.';
   };
 
   const handleSignInSubmit = async (e: FormEvent) => {

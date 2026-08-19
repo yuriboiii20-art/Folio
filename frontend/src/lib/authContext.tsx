@@ -281,7 +281,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       return { error: null };
     } catch (err: any) {
-      console.error('Firebase signIn error:', err);
+      console.warn('Firebase signIn error:', err);
+
+      // Check if user was registered with Google OAuth
+      try {
+        const methods = await fetchSignInMethodsForEmail(auth, normEmail);
+        if (methods.includes('google.com') && !methods.includes('password')) {
+          return {
+            error: new Error(
+              'This account was created with Google. Please click "Continue with Google" above to sign in.'
+            )
+          };
+        }
+        if (methods.length === 0) {
+          return {
+            error: new Error(
+              'No account found with this email. Please click "Create Account" tab or use "Continue with Google".'
+            )
+          };
+        }
+      } catch (methodsErr) {
+        console.warn('fetchSignInMethodsForEmail inspection note:', methodsErr);
+      }
+
       return { error: err };
     }
   };
