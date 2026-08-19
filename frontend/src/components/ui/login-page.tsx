@@ -85,6 +85,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   // Sign In Form State
   const [signInEmail, setSignInEmail] = useState('');
+  const [signInUsn, setSignInUsn] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
 
   // Sign Up Form State
@@ -97,6 +98,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   const formatAuthError = (err: any): string => {
     const msg = err?.message || '';
+    if (msg.includes('auth/unauthorized-domain') || msg.includes('unauthorized-domain')) {
+      return 'This domain is not authorized in Firebase. Go to Firebase Console > Authentication > Settings > Authorized domains > Click "Add domain" and add your Vercel domain.';
+    }
     if (msg.includes('auth/operation-not-allowed') || msg.includes('operation-not-allowed')) {
       return 'Email/Password Sign-In is not enabled yet in Firebase Console. Go to Firebase Console > Authentication > Sign-in method > Click "Email/Password" > Toggle "Enable" and click "Save".';
     }
@@ -150,7 +154,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       onLogin({
         name: email.split('@')[0],
         role: 'Academic Scholar',
-        usn: '1FA23CS042',
+        usn: signInUsn.trim().toUpperCase() || '1FA22CS099',
         sem: '6th Semester',
         branch: 'Computer Science & Engineering',
         email: email,
@@ -441,6 +445,21 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
 
               <div className="space-y-1">
+                <Label htmlFor="signin-usn" className="text-xs">Student USN Identifier</Label>
+                <div className="relative">
+                  <Input
+                    id="signin-usn"
+                    type="text"
+                    placeholder="e.g. 1FA22CS099"
+                    value={signInUsn}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSignInUsn(e.target.value)}
+                    className="pl-9 h-9.5 text-xs sm:text-sm uppercase tracking-wider"
+                  />
+                  <GraduationCap className="absolute left-3 top-2.5 size-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="signin-password" className="text-xs">Password</Label>
                   <button
@@ -505,15 +524,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="signup-usn" className="text-xs">USN (Optional)</Label>
-                  <Input
-                    id="signup-usn"
-                    type="text"
-                    placeholder="1FA22CS099"
-                    value={signUpUsn}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setSignUpUsn(e.target.value)}
-                    className="h-9 text-xs"
-                  />
+                  <Label htmlFor="signup-usn" className="text-xs">Student USN</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-usn"
+                      type="text"
+                      placeholder="1FA22CS099"
+                      value={signUpUsn}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSignUpUsn(e.target.value)}
+                      className="pl-8 h-9 text-xs uppercase tracking-wider"
+                    />
+                    <GraduationCap className="absolute left-2.5 top-2.5 size-3.5 text-slate-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 
