@@ -176,7 +176,7 @@ export const MagneticCursor: FC<MagneticCursorProps> = ({
       state.pos.target.y = y;
       state.pos.previous.x = x;
       state.pos.previous.y = y;
-      gsap.set(cursorEl, { x, y, opacity: 1 });
+      gsap.set(cursorEl, { x, y, opacity: 1, visibility: 'visible' });
     };
 
     const onMouseMove = (event: PointerEvent) => {
@@ -192,7 +192,12 @@ export const MagneticCursor: FC<MagneticCursorProps> = ({
         event.clientY >= 0 &&
         event.clientY <= window.innerHeight;
 
-      gsap.to(cursorEl, { opacity: isInViewport ? 1 : 0, duration: 0.2, overwrite: 'auto' });
+      gsap.to(cursorEl, {
+        opacity: isInViewport ? 1 : 0,
+        visibility: isInViewport ? 'visible' : 'hidden',
+        duration: 0.2,
+        overwrite: 'auto'
+      });
 
       const target = event.target as HTMLElement;
       const isTextContent =
@@ -339,11 +344,9 @@ export const MagneticCursor: FC<MagneticCursorProps> = ({
     width: cursorSize,
     height: cursorSize,
     borderRadius: shape === 'circle' ? '50%' : shape === 'square' ? '0' : '8px',
-    // Hidden until the first pointer move places it, so it never flashes at 0,0.
     opacity: 0,
-    // KEY FIX: Contrast Boost using backdrop-filter
-    backdropFilter: contrastBoost !== 1 ? `contrast(${contrastBoost})` : 'none',
-    WebkitBackdropFilter: contrastBoost !== 1 ? `contrast(${contrastBoost})` : 'none',
+    visibility: 'hidden',
+    transform: 'translate(-500px, -500px)',
   };
 
   return (
