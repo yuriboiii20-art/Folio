@@ -3267,7 +3267,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
           {/* AI STUDIO TAB */}
           {activeTab === 'ai-studio' && (
-            <div className="h-[calc(100dvh-150px)] sm:h-[calc(100dvh-120px)] w-full max-w-4xl mx-auto flex flex-col justify-between py-1 sm:py-2 animate-in fade-in duration-300">
+            <div className="h-[calc(100dvh-88px)] sm:h-[calc(100dvh-112px)] md:h-[calc(100dvh-128px)] w-full max-w-4xl mx-auto flex flex-col justify-between py-1 sm:py-2 animate-in fade-in duration-300">
 
               {/* Clean Native Page Header */}
               <div className="pb-4 mb-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -5129,20 +5129,13 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <h3 className="font-bold text-sm">Move folder to Trash?</h3>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed mb-3">
+            <p className="text-xs text-slate-600 leading-relaxed mb-5">
               <span className="font-bold text-slate-900">{deletingFolderTarget.name}</span> and the{' '}
               <span className="font-bold text-slate-900">
                 {files.filter(f => f.folderId === deletingFolderTarget.id).length}
               </span>{' '}
               document{files.filter(f => f.folderId === deletingFolderTarget.id).length === 1 ? '' : 's'} inside it will move to Trash together.
             </p>
-
-            <ul className="text-[11px] text-slate-500 space-y-1 mb-5 bg-slate-50 border border-slate-200 rounded-lg p-3">
-              <li>• Sidebar Trash counter increases</li>
-              <li>• Dashboard folder metrics decrease</li>
-              <li>• RAG embeddings for this subject are cleared from the index</li>
-              <li>• Everything can be restored from the Trash bin</li>
-            </ul>
 
             <div className="flex justify-end gap-2">
               <button
