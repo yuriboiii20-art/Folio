@@ -42,6 +42,12 @@
     color: var(--foreground);
     overflow-x: hidden;
   }
+
+  /* NOTE: do not put `overflow-x: clip` (or any overflow) on html/#root here.
+     Overflow on the root element propagates to the viewport, and `clip`
+     establishes a clip context that captures `position: fixed` descendants —
+     which would clip the sidebar drawer, modals, the bulk action bar and the
+     dropdown portals. The app shell already owns its own overflow. */
 }
 
 @layer components {
