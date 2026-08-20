@@ -14,10 +14,18 @@ export interface FolderProps {
   /** Renders the multi-select checkbox used by the bulk action bar. */
   selectable?: boolean;
   selected?: boolean;
+  /** True while any card in the grid is selected — a plain tap then toggles
+   *  selection instead of opening the folder, like a mobile gallery. */
+  selectionMode?: boolean;
   onSelectChange?: (selected: boolean) => void;
   onClick?: () => void;
   className?: string;
 }
+
+/** How long a touch must be held before the card selects itself. */
+const LONG_PRESS_MS = 450;
+/** Finger drift past this many pixels counts as a scroll, not a press. */
+const LONG_PRESS_SLOP = 10;
 
 export const FolderCard: React.FC<FolderProps> = ({
   title,
@@ -31,6 +39,7 @@ export const FolderCard: React.FC<FolderProps> = ({
   onDelete,
   selectable = false,
   selected = false,
+  selectionMode = false,
   onSelectChange,
   onClick,
   className = ""
@@ -44,10 +53,92 @@ export const FolderCard: React.FC<FolderProps> = ({
   // here would cancel the checkbox activation and swallow its change event.
   const stopPropagationOnly = (e: React.MouseEvent) => e.stopPropagation();
 
+  // Touch devices have no hover, so the actions stay hidden until a long press
+  // puts the card into selection mode.
+  const [pressRevealed, setPressRevealed] = React.useState(false);
+  const timerRef = React.useRef<number | null>(null);
+  const originRef = React.useRef<{ x: number; y: number } | null>(null);
+  const firedRef = React.useRef(false);
+
+  const clearTimer = () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  React.useEffect(() => clearTimer, []);
+
+  // Once the grid leaves selection mode, hide the actions again.
+  React.useEffect(() => {
+    if (!selected && !selectionMode) setPressRevealed(false);
+  }, [selected, selectionMode]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Long press works for every pointer type — a narrowed desktop window still
+    // reports `mouse`, and holding the button there should behave like a touch.
+    if (!selectable || e.button !== 0) return;
+    // Presses that start on an action control are that control's business.
+    if ((e.target as HTMLElement).closest('button, input, label, a')) return;
+
+    firedRef.current = false;
+    originRef.current = { x: e.clientX, y: e.clientY };
+    clearTimer();
+    timerRef.current = window.setTimeout(() => {
+      firedRef.current = true;
+      setPressRevealed(true);
+      if (!selected) onSelectChange?.(true);
+      navigator.vibrate?.(15);
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const origin = originRef.current;
+    if (!origin || timerRef.current === null) return;
+    if (
+      Math.abs(e.clientX - origin.x) > LONG_PRESS_SLOP ||
+      Math.abs(e.clientY - origin.y) > LONG_PRESS_SLOP
+    ) {
+      clearTimer();
+    }
+  };
+
+  const handlePointerEnd = () => {
+    clearTimer();
+    originRef.current = null;
+  };
+
+  const handleCardClick = () => {
+    // Swallow the click the browser fires at the end of a long press.
+    if (firedRef.current) {
+      firedRef.current = false;
+      return;
+    }
+    // While the grid is in selection mode, tapping toggles the card.
+    if (selectable && (selected || selectionMode)) {
+      onSelectChange?.(!selected);
+      return;
+    }
+    onClick?.();
+  };
+
+  const actionsVisible = selectable && (selected || selectionMode || pressRevealed);
+  // Tailwind wraps `group-hover:` in `@media (hover: hover)`, which drops out
+  // under touch emulation. The raw `.group:hover &` selector reveals on hover
+  // everywhere; touch screens, which never hover, use long press instead.
+  const revealClass = actionsVisible
+    ? 'opacity-100'
+    : 'opacity-0 [.group:hover_&]:opacity-100 focus-visible:opacity-100';
+
   return (
     <div
-      onClick={onClick}
-      className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border bg-white transition-all cursor-pointer shadow-2xs hover:shadow-md ${
+      onClick={handleCardClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onContextMenu={(e) => { if (actionsVisible || timerRef.current !== null) e.preventDefault(); }}
+      className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border bg-white transition-all cursor-pointer shadow-2xs hover:shadow-md select-none [-webkit-touch-callout:none] ${
         selected
           ? 'border-slate-900 ring-2 ring-slate-900/20 bg-slate-50'
           : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
@@ -58,7 +149,9 @@ export const FolderCard: React.FC<FolderProps> = ({
         <label
           onClick={stopPropagationOnly}
           className={`absolute top-2 left-2 z-20 flex items-center justify-center transition-opacity ${
-            selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+            selected || actionsVisible
+              ? 'opacity-100'
+              : 'opacity-0 [.group:hover_&]:opacity-100 focus-within:opacity-100'
           }`}
           title={selected ? 'Deselect folder' : 'Select folder'}
         >
@@ -77,10 +170,10 @@ export const FolderCard: React.FC<FolderProps> = ({
         {onStarToggle && (
           <button
             onClick={(e) => { stop(e); onStarToggle(e); }}
-            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${revealClass} ${
               isStarred
                 ? 'border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100 shadow-xs'
-                : 'border-slate-200 bg-white/90 text-slate-400 hover:text-amber-500 hover:bg-amber-50 opacity-0 group-hover:opacity-100'
+                : 'border-slate-200 bg-white/90 text-slate-400 hover:text-amber-500 hover:bg-amber-50'
             }`}
             title={isStarred ? 'Starred folder (click to unstar)' : 'Star this folder'}
             aria-pressed={isStarred}
@@ -92,7 +185,7 @@ export const FolderCard: React.FC<FolderProps> = ({
         {onShare && (
           <button
             onClick={(e) => { stop(e); onShare(e); }}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white/90 text-slate-400 hover:text-slate-900 hover:bg-slate-100 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+            className={`p-1.5 rounded-lg border border-slate-200 bg-white/90 text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer ${revealClass}`}
             title="Share this folder"
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -102,7 +195,7 @@ export const FolderCard: React.FC<FolderProps> = ({
         {onDelete && (
           <button
             onClick={(e) => { stop(e); onDelete(e); }}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white/90 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+            className={`p-1.5 rounded-lg border border-slate-200 bg-white/90 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-all cursor-pointer ${revealClass}`}
             title="Delete this folder"
           >
             <Trash2 className="w-3.5 h-3.5" />

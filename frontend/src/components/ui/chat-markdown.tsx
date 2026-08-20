@@ -133,7 +133,7 @@ export const ChatMarkdown: React.FC<ChatMarkdownProps> = ({ content, className =
   const blocks = useMemo(() => parseBlocks(content), [content]);
 
   return (
-    <div className={`text-sm leading-relaxed text-slate-800 space-y-2.5 ${className}`}>
+    <div className={`text-sm leading-relaxed text-slate-800 space-y-2.5 min-w-0 break-words ${className}`}>
       {blocks.map((block, idx) => {
         const key = `block-${idx}`;
 

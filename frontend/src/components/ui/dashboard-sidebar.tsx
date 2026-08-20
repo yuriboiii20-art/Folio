@@ -2412,7 +2412,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               </button>
 
               {isStreakPanelOpen && (
-                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute top-full right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-white border border-slate-200 rounded-xl shadow-2xl z-50 p-4 space-y-3 animate-in fade-in zoom-in-95 duration-150">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">
                       Study Streak
@@ -2510,7 +2510,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
         )}
 
         {/* Content View Switcher */}
-        <div ref={contentScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth p-3 sm:p-6 md:p-8">
+        <div ref={contentScrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth p-3 sm:p-6 md:p-8">
 
           {/* DASHBOARD TAB */}
           {activeTab === 'dashboard' && (
@@ -2519,7 +2519,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
 
                 {/* Left Column Stack: 1. Welcome Card + 2. Resource & Activity Overview Box + 3. Starred Box */}
-                <div className="lg:col-span-2 space-y-4">
+                <div className="lg:col-span-2 min-w-0 space-y-4">
 
                   {/* 1. Welcome Card (Compact) */}
                   <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-between gap-3 sm:gap-4 shrink-0">
@@ -2574,11 +2574,11 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
 
                     <div className="grid grid-cols-12 gap-3 items-center">
                       {/* Left: Compact Total Folders & Files Count Pills (4 cols) */}
-                      <div className="col-span-12 sm:col-span-4 flex flex-row sm:flex-col gap-2">
+                      <div className="col-span-12 sm:col-span-4 min-w-0 flex flex-row sm:flex-col gap-2">
                         {/* Total Folders Small Box */}
                         <div
                           onClick={() => goToTab('home')}
-                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                          className="flex-1 min-w-0 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -2599,7 +2599,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                         {/* Total Files Small Box */}
                         <div
                           onClick={() => goToTab('home')}
-                          className="flex-1 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
+                          className="flex-1 min-w-0 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer flex items-center justify-between group"
                         >
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -2619,7 +2619,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                       </div>
 
                       {/* Right: Visx-powered Animated BarChart (8 cols) */}
-                      <div className="col-span-12 sm:col-span-8 p-1.5 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden">
+                      <div className="col-span-12 sm:col-span-8 min-w-0 p-1.5 rounded-lg border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden">
                         <VisxBarChart
                           data={[
                             { day: 'Mon', hours: 2.5 },
@@ -2769,10 +2769,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                 </div>
 
                 {/* Right Column Stack: 1. Academic To-Do Tasks + 2. Upcoming Deadlines */}
-                <div className="lg:col-span-1 space-y-6">
+                <div className="lg:col-span-1 min-w-0 space-y-6">
 
                   {/* 1. Academic To-Do Tasks */}
-                  <div className="h-[210px] p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
+                  <div className="h-[210px] min-w-0 p-4 sm:p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2 shrink-0">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-slate-800" />
@@ -2795,7 +2795,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                         onChange={(e) => setNewTodoText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleAddTodo(); }}
                         placeholder="Add a new task..."
-                        className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none bg-slate-50 focus:border-slate-800 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
+                        className="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none bg-slate-50 focus:border-slate-800 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
                       />
                       <button
                         onClick={handleAddTodo}
@@ -2866,7 +2866,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                   </div>
 
                   {/* 2. Upcoming Deadlines Box (Fixed Height, Scrollable, Tick & Trash Icons) */}
-                  <div className="h-[250px] p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
+                  <div className="h-[250px] min-w-0 p-4 sm:p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between shrink-0 overflow-hidden">
 
                     {/* Header */}
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2 shrink-0">
@@ -2978,26 +2978,26 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               {openedFolderId && currentOpenedFolder ? (
                 <div className="space-y-6">
                   {/* Header Bar */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-200 gap-4">
-                    <div className="flex items-center gap-4">
+                  <div className="flex flex-col gap-4 pb-5 border-b border-slate-200 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                    <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-center sm:gap-4">
                       <button
                         onClick={() => setOpenedFolderId(null)}
-                        className="p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 font-bold flex items-center gap-2 text-xs cursor-pointer transition-all"
+                        className="self-start shrink-0 whitespace-nowrap p-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 font-bold flex items-center gap-2 text-xs cursor-pointer transition-all"
                       >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-4 h-4 shrink-0" />
                         <span>All Folders</span>
                       </button>
 
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h1 className="text-lg sm:text-2xl font-black text-slate-900 break-words">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight break-words">
                             {currentOpenedFolder.name}
                           </h1>
-                          <span className="px-2.5 py-1 text-xs font-black rounded-md border border-slate-300 bg-slate-100 text-slate-800">
+                          <span className="shrink-0 whitespace-nowrap px-2.5 py-1 text-xs font-black rounded-md border border-slate-300 bg-slate-100 text-slate-800">
                             {currentOpenedFolder.code}
                           </span>
                         </div>
-                        <p className="text-xs mt-1 text-slate-500">
+                        <p className="text-xs mt-1.5 text-slate-500">
                           {currentOpenedFolder.description}
                         </p>
                       </div>
@@ -3008,10 +3008,10 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                         setSelectedFolderId(currentOpenedFolder.id);
                         setIsUploadModalOpen(true);
                       }}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-md hover:bg-slate-800 transition-all cursor-pointer"
+                      className="self-start shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-black shadow-md hover:bg-slate-800 transition-all cursor-pointer"
                     >
                       <Upload className="w-4 h-4 shrink-0" />
-                      <span className="truncate">Upload File to Folder</span>
+                      <span>Upload File to Folder</span>
                     </button>
                   </div>
 
@@ -3187,6 +3187,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                             isArchived={folder.isArchived}
                             selectable
                             selected={selectedFolderIds.includes(folder.id)}
+                            selectionMode={selectedFolderIds.length > 0}
                             onSelectChange={(checked) => toggleFolderSelection(folder.id, checked)}
                             onStarToggle={(e) => handleToggleStarFolder(folder.id, e)}
                             onShare={() => { setShareCopied(false); setShareFolderTarget(folder); }}
@@ -3303,7 +3304,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
               </div>
 
               {/* Full Page Chat Stream */}
-              <div ref={chatStreamRef} className="flex-1 overflow-y-auto pr-1 sm:pr-2 space-y-6">
+              <div ref={chatStreamRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pr-1 sm:pr-2 space-y-6">
                 {chatMessages.map((msg, idx) => (
                   <div key={idx} className={`flex flex-col space-y-1.5 ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                     <div className="flex items-center gap-2 px-1">
@@ -3329,7 +3330,7 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     )}
 
                     {msg.sender === 'user' ? (
-                      <div className="text-sm leading-relaxed whitespace-pre-wrap bg-slate-900 text-white font-medium px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-xs max-w-[85%]">
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap break-words bg-slate-900 text-white font-medium px-4 py-2.5 rounded-2xl rounded-tr-xs shadow-xs max-w-[85%]">
                         {msg.text}
                       </div>
                     ) : (
@@ -3694,9 +3695,9 @@ print("Model Accuracy:", clf.score(X_test, y_test))`
                     </label>
                   </div>
 
-                  <div className="text-center sm:text-left flex-1">
+                  <div className="text-center sm:text-left flex-1 min-w-0">
                     <h2 className="text-xl sm:text-2xl font-black text-slate-900 break-words">{studentProfile.name}</h2>
-                    <p className="text-xs text-slate-500 mt-1 font-medium">{studentProfile.email}</p>
+                    <p className="text-xs text-slate-500 mt-1 font-medium break-all">{studentProfile.email}</p>
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
                       <span className="px-3 py-1 text-xs font-bold rounded-md bg-slate-100 text-slate-800 border border-slate-300">
                         {studentProfile.role}
