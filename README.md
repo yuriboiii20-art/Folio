@@ -17,7 +17,6 @@
 
 </div>
 
----
 
 ## 🖼️ Application Interface Preview
 
