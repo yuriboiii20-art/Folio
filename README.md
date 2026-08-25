@@ -18,7 +18,7 @@
 **FOLIO** is an all-in-one, high-performance academic resource management platform and AI study studio engineered for students. Featuring an ultra-clean Slate-Gray design system, interactive 3D subject folders, visx animated activity charts, AI study intelligence (Google Gemini 2.5 & Local Ollama RAG), document recovery trash bin, and Firebase (Cloud Firestore & Storage) persistence.
 
 </div>
-
+---
 
 ## 🖼️ Application Interface Preview
 
