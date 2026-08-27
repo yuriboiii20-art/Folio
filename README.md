@@ -22,9 +22,17 @@
 
 ## 🖼️ Application Interface Preview
 
-| 📊 Dashboard & Viewport Overview | 📈 Academic & AI Analytics Studio |
+| 📊 Dashboard & Viewport Overview | 📁 Academic Subject Folders |
 | :---: | :---: |
-| ![FOLIO Dashboard Preview](assets/images/dashboard_view.png) | ![FOLIO Analytics Studio Preview](assets/images/analytics_view.png) |
+| ![FOLIO Dashboard Preview](assets/images/dashboard_view.png) | ![FOLIO Subject Folders Preview](assets/images/subject_folders_view.png) |
+
+| 📈 Academic & AI Study Analytics | 🤖 Full-Page AI Studio (RAG) |
+| :---: | :---: |
+| ![FOLIO Analytics Studio Preview](assets/images/analytics_view.png) | ![FOLIO AI Studio Preview](assets/images/ai_studio_view.png) |
+
+| 👤 Student Profile & Avatar Customization |
+| :---: |
+| ![FOLIO Profile & Avatar Settings](assets/images/profile_settings_view.png) |
 
 ---
 
