@@ -38,6 +38,7 @@
 ---
 
 ## 📑 Table of Contents
+---
 
 - [Key Features](#-key-features)
   - [1. Dashboard & Slate-Gray Design System](#1-dashboard--slate-gray-design-system)
