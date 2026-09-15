@@ -106,6 +106,7 @@
 ### 8. Universal Themed Modals & Notification Dialogs
 - **Zero Browser Alerts**: Replaced default browser `alert()` dialogs with custom-styled modal popups.
 - **Context-Aware Visual Badges**: Emerald checkmark for successful file uploads, amber warning badges for delete confirmations, and slate info banners for system notices.
+- ---
 
 ### 9. PostgreSQL 15 & Spring Boot Backend
 - **PostgreSQL 15 Persistence**: Production-grade relational database (`foliodb` on port `5432`) with Spring Data JPA.
