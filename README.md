@@ -11,6 +11,8 @@
 [![Firebase](https://img.shields.io/badge/Firebase_10-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini_AI-8E75C3?style=for-the-badge&logo=google-gemini&logoColor=white)](https://ai.google.dev/)
 
+
+
 <br/>
 
 
