@@ -11,11 +11,7 @@
 [![Firebase](https://img.shields.io/badge/Firebase_10-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Google Gemini](https://img.shields.io/badge/Google_Gemini_AI-8E75C3?style=for-the-badge&logo=google-gemini&logoColor=white)](https://ai.google.dev/)
 
-
-
 <br/>
-
-
 ---
 
 **FOLIO** is an all-in-one, high-performance academic resource management platform and AI study studio engineered for students. Featuring an ultra-clean Slate-Gray design system, interactive 3D subject folders, visx animated activity charts, AI study intelligence (Google Gemini 2.5 & Local Ollama RAG), document recovery trash bin, and Firebase (Cloud Firestore & Storage)persistence.
