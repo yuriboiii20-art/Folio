@@ -213,7 +213,7 @@ npm install
 
 # (Optional) Add your Gemini API key in frontend/.env
 # VITE_GEMINI_API_KEY="your-gemini-api-key-here"
-
+3hi my name is yaqub , and this is my final year project
 # Start the Vite development server
 npm run dev
 ```
