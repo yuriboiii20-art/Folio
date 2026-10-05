@@ -221,7 +221,7 @@ npm run dev
 The frontend will be running at `http://localhost:5173/`.
 
 ---
-
+## hi i am yaqub and we are trying to build this for our final year project
 ### 2. Backend & Database Setup
 
 #### Option A: Run PostgreSQL via Docker (Recommended)
