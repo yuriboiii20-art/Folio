@@ -1,4 +1,4 @@
-# FOLIO - Smart Student Study Studio & Academic Resource Management System hi this is my prpoject , i am final year student
+# FOLIO - Smart Student Study Studio & Academic Resource Management System 
 
 <div align="center">
 
@@ -228,7 +228,7 @@ The frontend will be running at `http://localhost:5173/`.
 ```bash
 # From the project root directory
 docker compose up -d
-
+#hi i am yaqub ahmed , and this is my final year projet
 # PostgreSQL is active on port 5432
 # Adminer DB Explorer is active at http://localhost:8088/
 ```
