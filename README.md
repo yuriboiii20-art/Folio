@@ -1,4 +1,4 @@
-# FOLIO - Smart Student Study Studio & Academic Resource Management System
+# FOLIO - Smart Student Study Studio & Academic Resource Management System hi this is my prpoject , i am final year student
 
 <div align="center">
 
